@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iden3/go-iden3-crypto/constants"
+	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/iden3/go-iden3-crypto/utils"
 )
 
@@ -43,6 +45,10 @@ func NewHashFromBigInt(i *big.Int) (Hash, error) {
 
 func (h Hash) Hex() string {
 	return hex.EncodeToString(h[:])
+}
+
+func (h Hash) Int() *big.Int {
+	return new(big.Int).SetBytes(utils.SwapEndianness(h[:]))
 }
 
 type Node struct {
@@ -191,6 +197,60 @@ func (p Proof) MarshalJSON() ([]byte, error) {
 	return json.Marshal(obj)
 }
 
+// Root calculates tree root
+func (p Proof) Root(key, value Hash) (Hash, error) {
+	var midKey *big.Int
+	var err error
+
+	if p.Existence {
+		midKey, err = leafKey(key.Int(), value.Int())
+		if err != nil {
+			return Hash{}, err
+		}
+	} else {
+		if p.NodeAux == nil {
+			midKey = constants.Zero
+		} else {
+			if key == p.NodeAux.Key {
+				return Hash{}, errors.New(
+					"non-existence proof being checked against hIndex equal " +
+						"to nodeAux")
+			}
+			midKey, err = leafKey(p.NodeAux.Key.Int(), p.NodeAux.Value.Int())
+			if err != nil {
+				return Hash{}, err
+			}
+		}
+	}
+
+	for lvl := len(p.Siblings) - 1; lvl >= 0; lvl-- {
+		var left, right *big.Int
+		if testBitLittleEndian(key[:], uint(lvl)) {
+			left = p.Siblings[lvl].Int()
+			right = midKey
+		} else {
+			left = midKey
+			right = p.Siblings[lvl].Int()
+		}
+		midKey, err = middleNodeKey(left, right)
+		if err != nil {
+			return Hash{}, err
+		}
+	}
+
+	return NewHashFromBigInt(midKey)
+}
+
+// calculates hash of leaf node
+func leafKey(k, v *big.Int) (*big.Int, error) {
+	return poseidon.Hash([]*big.Int{k, v, constants.One})
+}
+
+// calculates hash of middle node
+func middleNodeKey(left, right *big.Int) (*big.Int, error) {
+	return poseidon.Hash([]*big.Int{left, right})
+}
+
 type NodeType byte
 
 const (
@@ -202,7 +262,9 @@ const (
 
 var ErrNodeNotFound = errors.New("node not found")
 
-func generateProof(rhsURL string, treeRoot Hash, key Hash) (Proof, error) {
+// GenerateProof generates proof of existence or in-existence of a key in
+// a tree identified by a treeRoot.
+func GenerateProof(rhsURL string, treeRoot Hash, key Hash) (Proof, error) {
 	nextKey := treeRoot
 	var p Proof
 	for depth := uint(0); depth < uint(len(key)*8); depth++ {
