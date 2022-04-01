@@ -19,6 +19,9 @@ import (
 const (
 	jsonKeyHashKey   = "key"
 	jsonKeyHashValue = "value"
+	jsonKeyNodeAux   = "aux_node"
+	jsonKeyExistence = "existence"
+	jsonKeySiblings  = "siblings"
 )
 
 func init() {
@@ -43,6 +46,21 @@ func NewHashFromBigInt(i *big.Int) (Hash, error) {
 	return h, nil
 }
 
+func NewHashFromHex(in string) (Hash, error) {
+	var h Hash
+
+	hashBytes, err := hex.DecodeString(in)
+	if err != nil {
+		return h, err
+	}
+	if len(hashBytes) != len(h) {
+		return h, errors.New("invalid hash length")
+	}
+
+	copy(h[:], hashBytes)
+	return h, nil
+}
+
 func (h Hash) Hex() string {
 	return hex.EncodeToString(h[:])
 }
@@ -51,17 +69,31 @@ func (h Hash) Int() *big.Int {
 	return new(big.Int).SetBytes(utils.SwapEndianness(h[:]))
 }
 
+func (h *Hash) UnmarshalText(data []byte) error {
+	h2, err := NewHashFromHex(string(data))
+	if err != nil {
+		return err
+	}
+
+	if !utils.CheckBigIntInField(h2.Int()) {
+		return errors.New("big int out of field")
+	}
+
+	copy(h[:], h2[:])
+	return nil
+}
+
 type Node struct {
 	Hash     Hash
 	Children []Hash
 }
 
-type NodeAux struct {
-	Key   Hash
-	Value Hash
+type LeafNode struct {
+	Key   Hash `json:"key"`
+	Value Hash `json:"value"`
 }
 
-func (n NodeAux) MarshalJSON() ([]byte, error) {
+func (n LeafNode) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]interface{}{
 		jsonKeyHashKey:   n.Key.Hex(),
 		jsonKeyHashValue: n.Value.Hex(),
@@ -69,118 +101,48 @@ func (n NodeAux) MarshalJSON() ([]byte, error) {
 }
 
 type Proof struct {
-	Existence bool     `json:"existence"`
-	Siblings  []Hash   `json:"siblings"`
-	NodeAux   *NodeAux `json:"aux_node"`
+	Existence bool
+	Siblings  []Hash
+	NodeAux   *LeafNode
 }
 
 func (p *Proof) UnmarshalJSON(data []byte) error {
-	p.Siblings = nil
-	p.NodeAux = nil
-
-	var obj map[string]interface{}
+	var obj map[string]json.RawMessage
 	err := json.Unmarshal(data, &obj)
 	if err != nil {
 		return err
 	}
 
-	exI, ok := obj["existence"]
+	raw, ok := obj[jsonKeyExistence]
 	if !ok {
-		return errors.New("existence key not found")
+		return fmt.Errorf("missing '%v' key", jsonKeyExistence)
 	}
-	p.Existence, ok = exI.(bool)
-	if !ok {
-		return errors.New("incorrect type of existence key")
+	err = json.Unmarshal(raw, &p.Existence)
+	if err != nil {
+		return err
 	}
 
-	sibI, ok := obj["siblings"]
-	if !ok || sibI == nil {
-		p.Siblings = nil
+	raw, ok = obj[jsonKeySiblings]
+	if ok {
+		err = json.Unmarshal(raw, &p.Siblings)
+		if err != nil {
+			return err
+		}
 	} else {
-		sibL, ok := sibI.([]interface{})
-		if !ok {
-			return fmt.Errorf("incorrect type of siblings key: %T", sibI)
-		}
-		p.Siblings = make([]Hash, len(sibL))
-		for i, s := range sibL {
-			sS, ok := s.(string)
-			if !ok {
-				return fmt.Errorf("sibling #%v is not string", i)
-			}
-			p.Siblings[i], err = unmarshalHex(sS)
-			if err != nil {
-				return fmt.Errorf("errors unmarshal sibling #%v: %v", i, err)
-			}
-		}
+		p.Siblings = nil
 	}
 
-	anI, ok := obj["aux_node"]
-	if !ok || anI == nil {
+	raw, ok = obj[jsonKeyNodeAux]
+	if ok {
+		err = json.Unmarshal(raw, &p.NodeAux)
+		if err != nil {
+			return err
+		}
+	} else {
 		p.NodeAux = nil
-		return nil
 	}
-
-	anI2, ok := anI.(map[string]interface{})
-	if !ok {
-		return errors.New("aux_node has incorrect format")
-	}
-
-	p.NodeAux = new(NodeAux)
-
-	keyI, ok := anI2["key"]
-	if !ok {
-		return errors.New("aux_node has not key")
-	}
-
-	keyS, ok := keyI.(string)
-	if !ok {
-		return errors.New("aux_node key is not a string")
-	}
-
-	hashBytes, err := hex.DecodeString(keyS)
-	if err != nil {
-		return err
-	}
-	if len(hashBytes) != len(p.NodeAux.Key) {
-		return errors.New("incorrect aux_node key length")
-	}
-
-	copy(p.NodeAux.Key[:], hashBytes)
-
-	valueI, ok := anI2["value"]
-	if !ok {
-		return errors.New("aux_node has not value")
-	}
-
-	valueS, ok := valueI.(string)
-	if !ok {
-		return errors.New("aux_node value is not a string")
-	}
-
-	hashBytes, err = hex.DecodeString(valueS)
-	if err != nil {
-		return err
-	}
-	if len(hashBytes) != len(p.NodeAux.Value) {
-		return errors.New("incorrect aux_node value length")
-	}
-
-	copy(p.NodeAux.Value[:], hashBytes)
 
 	return nil
-}
-
-func unmarshalHex(in string) (Hash, error) {
-	var h Hash
-	data, err := hex.DecodeString(in)
-	if err != nil {
-		return h, err
-	}
-	if len(data) != len(h) {
-		return h, errors.New("incorrect length")
-	}
-	copy(h[:], data)
-	return h, nil
 }
 
 func (p Proof) MarshalJSON() ([]byte, error) {
@@ -189,10 +151,10 @@ func (p Proof) MarshalJSON() ([]byte, error) {
 		siblings[i] = p.Siblings[i].Hex()
 	}
 	obj := map[string]interface{}{
-		"existence": p.Existence,
-		"siblings":  siblings}
+		jsonKeyExistence: p.Existence,
+		jsonKeySiblings:  siblings}
 	if p.NodeAux != nil {
-		obj["aux_node"] = p.NodeAux
+		obj[jsonKeyNodeAux] = p.NodeAux
 	}
 	return json.Marshal(obj)
 }
@@ -282,7 +244,7 @@ func GenerateProof(rhsURL string, treeRoot Hash, key Hash) (Proof, error) {
 				return p, nil
 			}
 			// We found a leaf whose entry didn't match hIndex
-			p.NodeAux = &NodeAux{Key: n.Children[0], Value: n.Children[1]}
+			p.NodeAux = &LeafNode{Key: n.Children[0], Value: n.Children[1]}
 			return p, nil
 		case NodeTypeMiddle:
 			var siblingKey Hash
