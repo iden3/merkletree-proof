@@ -30,12 +30,6 @@ jobs:
         env:
           RHS_URL: http://rhs:8080
     services:
-      postgres:
-        image: postgres:14.2
-        env:
-          POSTGRES_PASSWORD: pgpwd
-        volumes:
-          - vrhs:/docker-entrypoint-initdb.d
       rhs:
         image: ghcr.io/iden3/reverse-hash-service:latest
         credentials:
@@ -45,3 +39,9 @@ jobs:
           RHS_DB: "host=postgres password=pgpwd user=postgres"
         volumes:
           - vrhs:/opt
+      postgres:
+        image: postgres:14.2
+        env:
+          POSTGRES_PASSWORD: pgpwd
+        volumes:
+          - vrhs:/docker-entrypoint-initdb.d
