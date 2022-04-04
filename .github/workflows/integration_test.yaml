@@ -1,4 +1,4 @@
-name: Test
+name: integration tests
 
 on:
   push:
@@ -27,3 +27,18 @@ jobs:
       - name: Unit Tests
         run: go test -v -race ./...
         working-directory: tests/integration
+        env:
+          RHS_URL: http://rhs:8080
+    services:
+      postgres:
+        image: postgres:14.2
+        env:
+          POSTGRES_PASSWORD: pgpwd
+        volumes:
+          - vrhs:/docker-entrypoint-initdb.d
+      rhs:
+        image: ghcr.io/iden3/reverse-hash-service:latest
+        env:
+          RHS_DB: "host=postgres password=pgpwd user=postgres"
+        volumes:
+          - vrhs:/opt

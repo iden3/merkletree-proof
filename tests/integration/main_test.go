@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -20,9 +21,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const rhsUrl = "http://localhost:8080"
-
 func TestProof(t *testing.T) {
+	rhsUrl, ok := os.LookupEnv("RHS_URL")
+	if !ok || rhsUrl == "" {
+		t.Fatal("RHS_URL not set")
+	}
+
 	revNonces := []uint64{
 		5577006791947779410,  // 19817761...  0 1 0 0 1 0 1 0
 		8674665223082153551,  // 68456430...  1 1 1 1 0 0 1 0
