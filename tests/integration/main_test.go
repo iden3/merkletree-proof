@@ -319,7 +319,7 @@ func submitNodesToRHS(t testing.TB, url string, req []proof.Node) {
 	respData, err := io.ReadAll(httpResp.Body)
 	require.NoError(t, err)
 
-	require.Equal(t, http.StatusOK, httpResp.StatusCode)
+	require.Equal(t, http.StatusOK, httpResp.StatusCode, string(respData))
 	require.Equal(t, `{"status":"OK"}`, string(respData))
 }
 
