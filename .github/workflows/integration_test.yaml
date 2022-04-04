@@ -20,15 +20,15 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+      - name: view logs
+        run: |
+          echo "${{ toJson(job) }}"
+          docker logs "${{ job.services.rhs.id }}"
       - name: Unit Tests
         run: go test -v -race ./...
         working-directory: tests/integration
         env:
           RHS_URL: http://rhs:8080
-      - name: view logs
-        run: |
-          echo "${{ toJson(job) }}"
-          docker logs "${{ job.services.rhs.id }}"
     services:
       rhs:
         image: ghcr.io/iden3/reverse-hash-service:latest
