@@ -11,8 +11,7 @@ jobs:
     runs-on: ubuntu-20.04
     container: golang:1.18.0-bullseye
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
       - uses: actions/cache@v2
         with:
           path: |
@@ -26,6 +25,10 @@ jobs:
         working-directory: tests/integration
         env:
           RHS_URL: http://rhs:8080
+      - name: view logs
+        run: |
+          echo "${{ toJson(job) }}"
+          docker logs "${{ job.services.rhs.id }}"
     services:
       rhs:
         image: ghcr.io/iden3/reverse-hash-service:latest
