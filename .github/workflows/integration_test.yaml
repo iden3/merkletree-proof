@@ -8,11 +8,8 @@ on:
 
 jobs:
   test:
-    strategy:
-      matrix:
-        containers: [ 1.18.0-bullseye ]
-    runs-on: ubuntu-latest
-    container: golang:${{ matrix.containers }}
+    runs-on: ubuntu-20.04
+    container: golang:1.18.0-bullseye
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
