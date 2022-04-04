@@ -83,9 +83,13 @@ func (h *Hash) UnmarshalText(data []byte) error {
 	return nil
 }
 
+func (h Hash) MarshalText() ([]byte, error) {
+	return []byte(h.Hex()), nil
+}
+
 type Node struct {
-	Hash     Hash
-	Children []Hash
+	Hash     Hash   `json:"hash"`
+	Children []Hash `json:"children"`
 }
 
 type LeafNode struct {
