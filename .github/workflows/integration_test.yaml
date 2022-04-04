@@ -20,11 +20,7 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-#      - name: view logs
-#        run: |
-#          echo "${{ toJson(job) }}"
-#          docker logs "${{ job.services.rhs.id }}"
-      - name: Unit Tests
+      - name: Integration Tests
         run: go test -v -race ./...
         working-directory: tests/integration
         env:
