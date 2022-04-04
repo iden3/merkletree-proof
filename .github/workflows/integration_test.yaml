@@ -38,6 +38,9 @@ jobs:
           - vrhs:/docker-entrypoint-initdb.d
       rhs:
         image: ghcr.io/iden3/reverse-hash-service:latest
+        credentials:
+          username: ${{ secrets.RHS_DOCKER_LOGIN }}
+          password: ${{ secrets.RHS_DOCKER_PASSWORD }}
         env:
           RHS_DB: "host=postgres password=pgpwd user=postgres"
         volumes:
