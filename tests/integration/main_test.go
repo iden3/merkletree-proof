@@ -5,14 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"net/http"
 	"os"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/iden3/go-merkletree-sql"
@@ -26,6 +23,7 @@ func TestProof(t *testing.T) {
 	if !ok || rhsUrl == "" {
 		t.Fatal("RHS_URL not set")
 	}
+	rhsCli := &proof.HTTPReverseHashCli{URL: rhsUrl}
 
 	revNonces := []uint64{
 		5577006791947779410,  // 19817761...  0 1 0 0 1 0 1 0
@@ -49,7 +47,7 @@ func TestProof(t *testing.T) {
 	t.Run("Test save state", func(t *testing.T) {
 		state := saveIdenStateToRHS(t, rhsUrl, bigMerkleTree)
 
-		revTreeRoot, err := getRevTreeRoot(rhsUrl, state)
+		revTreeRoot, err := getRevTreeRoot(rhsCli, state)
 		require.NoError(t, err)
 
 		revTreeRootExpected := hashFromInt(bigMerkleTree.Root().BigInt())
@@ -170,7 +168,6 @@ func TestProof(t *testing.T) {
 			revNonceKey := merkletree.NewHashFromBigInt(revNonceKeyInt)
 			revNonceValueInt := big.NewInt(0)
 
-			rhsCli := proof.HTTPReverseHashCli{URL: rhsUrl}
 			proofGen, err := rhsCli.GenerateProof(tc.revTreeRoot, revNonceKey)
 			if tc.wantErr == "" {
 				require.NoError(t, err)
@@ -187,9 +184,9 @@ func TestProof(t *testing.T) {
 	}
 }
 
-// TODO use GetNode public method instead
-func getRevTreeRoot(rhsURL string, state proof.Hash) (proof.Hash, error) {
-	stateNode, err := getNodeFromRHS(rhsURL, state)
+func getRevTreeRoot(rhsCli *proof.HTTPReverseHashCli,
+	state *merkletree.Hash) (proof.Hash, error) {
+	stateNode, err := rhsCli.GetNode(state)
 	if err != nil {
 		return proof.Hash{}, err
 	}
@@ -203,58 +200,8 @@ func getRevTreeRoot(rhsURL string, state proof.Hash) (proof.Hash, error) {
 	return stateNode.Children[1], nil
 }
 
-var ErrNodeNotFound = errors.New("node not found")
-
-func getNodeFromRHS(rhsURL string, hash proof.Hash) (proof.Node, error) {
-	rhsURL = strings.TrimSuffix(rhsURL, "/")
-	rhsURL += "/node/" + hash.Hex()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	httpReq, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, rhsURL, http.NoBody)
-	if err != nil {
-		return proof.Node{}, err
-	}
-
-	httpResp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		return proof.Node{}, err
-	}
-
-	defer httpResp.Body.Close()
-
-	if httpResp.StatusCode == http.StatusNotFound {
-		var resp map[string]interface{}
-		dec := json.NewDecoder(httpResp.Body)
-		err := dec.Decode(&resp)
-		if err != nil {
-			return proof.Node{}, err
-		}
-		if resp["status"] == "not found" {
-			return proof.Node{}, ErrNodeNotFound
-		} else {
-			return proof.Node{}, errors.New("unexpected response")
-		}
-	} else if httpResp.StatusCode != http.StatusOK {
-		return proof.Node{}, fmt.Errorf("unexpected response: %v",
-			httpResp.StatusCode)
-	}
-
-	var nodeResp struct {
-		Node   proof.Node `json:"node"`
-		Status string     `json:"status"`
-	}
-	dec := json.NewDecoder(httpResp.Body)
-	err = dec.Decode(&nodeResp)
-	if err != nil {
-		return proof.Node{}, err
-	}
-
-	return nodeResp.Node, nil
-}
-
 func saveIdenStateToRHS(t testing.TB, url string,
-	merkleTree *merkletree.MerkleTree) proof.Hash {
+	merkleTree *merkletree.MerkleTree) *merkletree.Hash {
 
 	revTreeRoot := merkleTree.Root()
 	state, err := poseidon.Hash([]*big.Int{big.NewInt(0), revTreeRoot.BigInt(),
@@ -271,7 +218,7 @@ func saveIdenStateToRHS(t testing.TB, url string,
 		},
 	}
 	submitNodesToRHS(t, url, req)
-	return hashFromInt(state)
+	return merkletree.NewHashFromBigInt(state)
 }
 
 func buildTree(t testing.TB, revNonces []uint64) *merkletree.MerkleTree {
