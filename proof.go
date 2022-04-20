@@ -155,7 +155,7 @@ func (cli *HTTPReverseHashCli) GenerateProof(treeRoot *merkletree.Hash,
 			}
 			return mkProof()
 		case NodeTypeMiddle:
-			if testBitLittleEndian(key[:], depth) {
+			if merkletree.TestBit(key[:], depth) {
 				nextKey = hashToMTHash(n.Children[1])
 				siblings = append(siblings, hashToMTHash(n.Children[0]))
 			} else {
@@ -258,12 +258,6 @@ func nodeType(node Node) NodeType {
 type nodeResponse struct {
 	Node   Node   `json:"node"`
 	Status string `json:"status"`
-}
-
-// TODO replace with merkletree implementation
-// testBitLittleEndian tests whether the bit n in bitmap is 1.
-func testBitLittleEndian(bitmap []byte, n uint) bool {
-	return bitmap[n/8]&(1<<(n%8)) != 0
 }
 
 func hashToMTHash(hash Hash) *merkletree.Hash {
