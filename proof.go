@@ -1,6 +1,7 @@
 package merkletree_proof
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"github.com/iden3/go-iden3-crypto/constants"
 	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/iden3/go-iden3-crypto/utils"
+	"github.com/iden3/go-merkletree-sql"
 )
 
 const (
@@ -270,6 +272,134 @@ func GenerateProof(rhsURL string, treeRoot Hash, key Hash) (Proof, error) {
 	return p, errors.New("tree depth is too high")
 }
 
+type HTTPReverseHashCli struct {
+	URL         string
+	HTTPTimeout time.Duration
+}
+
+// GenerateProof generates proof of existence or in-existence of a key in
+// a tree identified by a treeRoot.
+func (cli *HTTPReverseHashCli) GenerateProof(treeRoot *merkletree.Hash,
+	key *merkletree.Hash) (*merkletree.Proof, error) {
+
+	if cli.URL == "" {
+		return nil, errors.New("HTTP reverse hash service url is not specified")
+	}
+
+	var exists bool
+	var siblings []*merkletree.Hash
+	var nodeAux *merkletree.NodeAux
+
+	mkProof := func() (*merkletree.Proof, error) {
+		return merkletree.NewProofFromData(exists, siblings, nodeAux)
+	}
+
+	nextKey := treeRoot
+	for depth := uint(0); depth < uint(len(key)*8); depth++ {
+		if *nextKey == merkletree.HashZero {
+			return mkProof()
+		}
+		n, err := cli.GetNode(nextKey)
+		if err != nil {
+			return nil, err
+		}
+		switch nt := nodeType(n); nt {
+		case NodeTypeLeaf:
+			if bytes.Equal(key[:], n.Children[0][:]) {
+				exists = true
+				return mkProof()
+			}
+			// We found a leaf whose entry didn't match hIndex
+			nodeAux = &merkletree.NodeAux{
+				Key:   hashToMTHash(n.Children[0]),
+				Value: hashToMTHash(n.Children[1]),
+			}
+			return mkProof()
+		case NodeTypeMiddle:
+			if testBitLittleEndian(key[:], depth) {
+				nextKey = hashToMTHash(n.Children[1])
+				siblings = append(siblings, hashToMTHash(n.Children[0]))
+			} else {
+				nextKey = hashToMTHash(n.Children[0])
+				siblings = append(siblings, hashToMTHash(n.Children[1]))
+			}
+		default:
+			return nil, fmt.Errorf(
+				"found unexpected node type in tree (%v): %v",
+				nt, n.Hash.Hex())
+		}
+	}
+
+	return nil, errors.New("tree depth is too high")
+}
+
+func (cli *HTTPReverseHashCli) nodeURL(node *merkletree.Hash) string {
+	nodeURL := cli.baseURL() + "/node/"
+	if node == nil {
+		return nodeURL
+	}
+	return nodeURL + node.Hex()
+}
+
+func (cli *HTTPReverseHashCli) baseURL() string {
+	return strings.TrimSuffix(cli.URL, "/")
+}
+
+func (cli *HTTPReverseHashCli) getHttpTimeout() time.Duration {
+	if cli.HTTPTimeout == 0 {
+		return 10 * time.Second
+	}
+	return cli.HTTPTimeout
+}
+
+func (cli *HTTPReverseHashCli) GetNode(hash *merkletree.Hash) (Node, error) {
+	if hash == nil {
+		return Node{}, errors.New("hash is nil")
+	}
+
+	ctx, cancel :=
+		context.WithTimeout(context.Background(), cli.getHttpTimeout())
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(
+		ctx, http.MethodGet, cli.nodeURL(hash), http.NoBody)
+	if err != nil {
+		return Node{}, err
+	}
+
+	httpResp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return Node{}, err
+	}
+
+	defer httpResp.Body.Close()
+	if httpResp.StatusCode == http.StatusNotFound {
+		var resp map[string]interface{}
+		dec := json.NewDecoder(httpResp.Body)
+		err := dec.Decode(&resp)
+		if err != nil {
+			return Node{}, err
+		}
+		if resp["status"] == "not found" {
+			return Node{}, ErrNodeNotFound
+		} else {
+			return Node{}, errors.New("unexpected response")
+		}
+	} else if httpResp.StatusCode != http.StatusOK {
+		return Node{}, fmt.Errorf("unexpected response: %v",
+			httpResp.StatusCode)
+	}
+
+	var nodeResp nodeResponse
+	dec := json.NewDecoder(httpResp.Body)
+	err = dec.Decode(&nodeResp)
+	if err != nil {
+		return Node{}, err
+	}
+
+	return nodeResp.Node, nil
+}
+
 func nodeType(node Node) NodeType {
 	if len(node.Children) == 2 {
 		return NodeTypeMiddle
@@ -291,6 +421,7 @@ type nodeResponse struct {
 	Status string `json:"status"`
 }
 
+// TODO use method instead
 func getNodeFromRHS(rhsURL string, hash Hash) (Node, error) {
 	rhsURL = strings.TrimSuffix(rhsURL, "/")
 	rhsURL += "/node/" + hash.Hex()
@@ -332,18 +463,16 @@ func getNodeFromRHS(rhsURL string, hash Hash) (Node, error) {
 		return Node{}, err
 	}
 
-	// begin debug
-	// x, err := json.Marshal(nodeResp.Node)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// log.Printf(string(x))
-	// end debug
-
 	return nodeResp.Node, nil
 }
 
 // testBitLittleEndian tests whether the bit n in bitmap is 1.
 func testBitLittleEndian(bitmap []byte, n uint) bool {
 	return bitmap[n/8]&(1<<(n%8)) != 0
+}
+
+func hashToMTHash(hash Hash) *merkletree.Hash {
+	var h merkletree.Hash
+	copy(h[:], hash[:])
+	return &h
 }
