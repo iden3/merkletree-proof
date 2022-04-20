@@ -88,18 +88,6 @@ type Node struct {
 	Children []Hash `json:"children"`
 }
 
-type LeafNode struct {
-	Key   Hash `json:"key"`
-	Value Hash `json:"value"`
-}
-
-func (n LeafNode) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]interface{}{
-		jsonKeyHashKey:   n.Key.Hex(),
-		jsonKeyHashValue: n.Value.Hex(),
-	})
-}
-
 type NodeType byte
 
 const (
