@@ -5,14 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"net/http"
 	"os"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/iden3/go-merkletree-sql"
@@ -26,6 +23,7 @@ func TestProof(t *testing.T) {
 	if !ok || rhsUrl == "" {
 		t.Fatal("RHS_URL not set")
 	}
+	rhsCli := &proof.HTTPReverseHashCli{URL: rhsUrl}
 
 	revNonces := []uint64{
 		5577006791947779410,  // 19817761...  0 1 0 0 1 0 1 0
@@ -49,41 +47,39 @@ func TestProof(t *testing.T) {
 	t.Run("Test save state", func(t *testing.T) {
 		state := saveIdenStateToRHS(t, rhsUrl, bigMerkleTree)
 
-		revTreeRoot, err := getRevTreeRoot(rhsUrl, state)
+		revTreeRoot, err := getRevTreeRoot(rhsCli, state)
 		require.NoError(t, err)
 
-		revTreeRootExpected := hashFromInt(bigMerkleTree.Root().BigInt())
-		require.Equal(t, revTreeRootExpected, revTreeRoot)
+		require.Equal(t, bigMerkleTree.Root(), revTreeRoot)
 	})
 
 	testCases := []struct {
 		title       string
 		revNonce    uint64
-		revTreeRoot proof.Hash
-		wantProof   proof.Proof
+		revTreeRoot *merkletree.Hash
+		wantProof   *merkletree.Proof
 		wantErr     string
 	}{
 		{
 			title:       "regular node",
 			revNonce:    10667007354186551956,
-			revTreeRoot: hashFromInt(bigMerkleTree.Root().BigInt()),
-			wantProof: proof.Proof{
-				Existence: true,
-				Siblings: []proof.Hash{
+			revTreeRoot: bigMerkleTree.Root(),
+			wantProof: mkProof(
+				true,
+				[]*merkletree.Hash{
 					hashFromHex("74321998e281c0a89dbcce55a6cec0e366536e2697ea40efaf036ecba751ed03"),
 					hashFromHex("ff11b8bf1d13e28e86e249d2acdba0bd9c0fe4a5f56ad4236b09185bde81c316"),
 					hashFromHex("db5eb80f6b60b4e23714d4d00f178ba62fbdb4f0294675f51ac99aa24e600827"),
 				},
-				NodeAux: nil,
-			},
+				nil),
 		},
 		{
 			title:       "a node with zero siblings",
 			revNonce:    8674665223082147919,
-			revTreeRoot: hashFromInt(bigMerkleTree.Root().BigInt()),
-			wantProof: proof.Proof{
-				Existence: true,
-				Siblings: []proof.Hash{
+			revTreeRoot: bigMerkleTree.Root(),
+			wantProof: mkProof(
+				true,
+				[]*merkletree.Hash{
 					hashFromHex("b2f5a640931d3815375be1e9a00ee4da175d3eb9520ef0715f484b11a75f2a14"),
 					hashFromHex("28e5cdd29d9ad96cc214c654ca8e2f4fa5576bc132e172519804a58ee4bb4d18"),
 					hashFromHex("658c7a65594ebb0815e1cc20f54284ccdb51bb1625f103c116ce58444145381e"),
@@ -95,43 +91,42 @@ func TestProof(t *testing.T) {
 					hashFromHex("0000000000000000000000000000000000000000000000000000000000000000"),
 					hashFromHex("e809a4ed2cf98922910e456f1e56862bb958777f5ff0ea6799360113257f220f"),
 				},
-				NodeAux: nil,
-			},
+				nil),
 		},
 		{
 			title: "un-existence with aux node",
 			//nolint:gocritic
 			revNonce:    5, // revNonceKey[0] = 0b00000101
-			revTreeRoot: hashFromInt(bigMerkleTree.Root().BigInt()),
-			wantProof: proof.Proof{
-				Existence: false,
-				Siblings: []proof.Hash{
+			revTreeRoot: bigMerkleTree.Root(),
+			wantProof: mkProof(
+				false,
+				[]*merkletree.Hash{
 					hashFromHex("b2f5a640931d3815375be1e9a00ee4da175d3eb9520ef0715f484b11a75f2a14"),
 					hashFromHex("c9719432e3d8bf360d0f2de456c5321c51295895c9330b0588552580765cd929"),
 					hashFromHex("c0e8bf477403a8161cc2153597ff7791f67e6cfde6a96ca2748292662ec78d0a"),
 				},
-				NodeAux: &proof.LeafNode{
-					Key:   hashFromTextInt("15352856648520921629"),
-					Value: hashFromInt(big.NewInt(0)),
-				},
-			},
+				&merkletree.NodeAux{
+					Key: hashFromInt(
+						new(big.Int).SetUint64(15352856648520921629)),
+					Value: &merkletree.HashZero,
+				}),
 		},
 		{
 			title: "test un-existence without aux node",
 			//nolint:gocritic
 			revNonce:    31, // revNonceKey[0] = 0b00011111
-			revTreeRoot: hashFromInt(bigMerkleTree.Root().BigInt()),
-			wantProof: proof.Proof{
-				Existence: false,
-				Siblings: []proof.Hash{
+			revTreeRoot: bigMerkleTree.Root(),
+			wantProof: mkProof(
+				false,
+				[]*merkletree.Hash{
 					hashFromHex("b2f5a640931d3815375be1e9a00ee4da175d3eb9520ef0715f484b11a75f2a14"),
 					hashFromHex("28e5cdd29d9ad96cc214c654ca8e2f4fa5576bc132e172519804a58ee4bb4d18"),
 					hashFromHex("658c7a65594ebb0815e1cc20f54284ccdb51bb1625f103c116ce58444145381e"),
 					hashFromHex("0000000000000000000000000000000000000000000000000000000000000000"),
 					hashFromHex("5aa678402ef2cd5102de99722a6923183461b93f705a9d0aaaaff6a131a83504"),
 				},
-				NodeAux: nil,
-			},
+				nil,
+			),
 		},
 		{
 			title:       "test node does not exists",
@@ -143,71 +138,60 @@ func TestProof(t *testing.T) {
 			title:       "test zero tree root",
 			revNonce:    31,
 			revTreeRoot: hashFromHex("0000000000000000000000000000000000000000000000000000000000000000"),
-			wantProof: proof.Proof{
-				Existence: false,
-				Siblings:  nil,
-				NodeAux:   nil,
-			},
+			wantProof:   mkProof(false, nil, nil),
 		},
 		{
 			title:       "existence of one only node in a tree",
 			revNonce:    5577006791947779410,
-			revTreeRoot: hashFromInt(oneNodeMerkleTree.Root().BigInt()),
-			wantProof: proof.Proof{
-				Existence: true,
-				Siblings:  nil,
-				NodeAux:   nil,
-			},
+			revTreeRoot: oneNodeMerkleTree.Root(),
+			wantProof:   mkProof(true, nil, nil),
 		},
 		{
 			title:       "un-existence of one only node in a tree",
 			revNonce:    10667007354186551956,
-			revTreeRoot: hashFromInt(oneNodeMerkleTree.Root().BigInt()),
-			wantProof: proof.Proof{
-				Existence: false,
-				Siblings:  nil,
-				NodeAux: &proof.LeafNode{
-					Key:   hashFromInt(big.NewInt(5577006791947779410)),
-					Value: hashFromInt(big.NewInt(0)),
+			revTreeRoot: oneNodeMerkleTree.Root(),
+			wantProof: mkProof(false, nil,
+				&merkletree.NodeAux{
+					Key: hashFromInt(
+						big.NewInt(5577006791947779410)),
+					Value: &merkletree.HashZero,
 				},
-			},
+			),
 		},
 	}
 
 	for i := range testCases {
 		tc := testCases[i]
 		t.Run(tc.title, func(t *testing.T) {
-			revNonceKey := hashFromInt(new(big.Int).SetUint64(tc.revNonce))
-			revNonceValue := hashFromInt(big.NewInt(0))
+			revNonceKeyInt := new(big.Int).SetUint64(tc.revNonce)
+			revNonceKey := hashFromInt(revNonceKeyInt)
+			revNonceValueInt := big.NewInt(0)
 
-			proofGen, err := proof.GenerateProof(rhsUrl, tc.revTreeRoot,
-				revNonceKey)
+			proofGen, err := rhsCli.GenerateProof(tc.revTreeRoot, revNonceKey)
 			if tc.wantErr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tc.wantProof, proofGen)
 
-				rootHash, err := proofGen.Root(revNonceKey, revNonceValue)
+				rootHash, err := merkletree.RootFromProof(proofGen,
+					revNonceKeyInt, revNonceValueInt)
 				require.NoError(t, err)
 				require.Equal(t, tc.revTreeRoot, rootHash)
-
-				//nolint:gocritic
-				// logProof(t, proof)
 			} else {
 				require.EqualError(t, err, tc.wantErr)
 			}
 		})
 	}
-
 }
 
-func getRevTreeRoot(rhsURL string, state proof.Hash) (proof.Hash, error) {
-	stateNode, err := getNodeFromRHS(rhsURL, state)
+func getRevTreeRoot(rhsCli *proof.HTTPReverseHashCli,
+	state *merkletree.Hash) (*merkletree.Hash, error) {
+	stateNode, err := rhsCli.GetNode(state)
 	if err != nil {
-		return proof.Hash{}, err
+		return nil, err
 	}
 
 	if len(stateNode.Children) != 3 {
-		return proof.Hash{}, errors.New(
+		return nil, errors.New(
 			"state hash does not looks like a state node: " +
 				"number of children expected to be three")
 	}
@@ -215,75 +199,24 @@ func getRevTreeRoot(rhsURL string, state proof.Hash) (proof.Hash, error) {
 	return stateNode.Children[1], nil
 }
 
-var ErrNodeNotFound = errors.New("node not found")
-
-func getNodeFromRHS(rhsURL string, hash proof.Hash) (proof.Node, error) {
-	rhsURL = strings.TrimSuffix(rhsURL, "/")
-	rhsURL += "/node/" + hash.Hex()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	httpReq, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, rhsURL, http.NoBody)
-	if err != nil {
-		return proof.Node{}, err
-	}
-
-	httpResp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		return proof.Node{}, err
-	}
-
-	defer httpResp.Body.Close()
-
-	if httpResp.StatusCode == http.StatusNotFound {
-		var resp map[string]interface{}
-		dec := json.NewDecoder(httpResp.Body)
-		err := dec.Decode(&resp)
-		if err != nil {
-			return proof.Node{}, err
-		}
-		if resp["status"] == "not found" {
-			return proof.Node{}, ErrNodeNotFound
-		} else {
-			return proof.Node{}, errors.New("unexpected response")
-		}
-	} else if httpResp.StatusCode != http.StatusOK {
-		return proof.Node{}, fmt.Errorf("unexpected response: %v",
-			httpResp.StatusCode)
-	}
-
-	var nodeResp struct {
-		Node   proof.Node `json:"node"`
-		Status string     `json:"status"`
-	}
-	dec := json.NewDecoder(httpResp.Body)
-	err = dec.Decode(&nodeResp)
-	if err != nil {
-		return proof.Node{}, err
-	}
-
-	return nodeResp.Node, nil
-}
-
 func saveIdenStateToRHS(t testing.TB, url string,
-	merkleTree *merkletree.MerkleTree) proof.Hash {
+	merkleTree *merkletree.MerkleTree) *merkletree.Hash {
 
 	revTreeRoot := merkleTree.Root()
 	state, err := poseidon.Hash([]*big.Int{big.NewInt(0), revTreeRoot.BigInt(),
 		big.NewInt(0)})
 	require.NoError(t, err)
 
+	stateHash := hashFromInt(state)
 	req := []proof.Node{
 		{
-			Hash: hashFromInt(state),
-			Children: []proof.Hash{
-				hashFromInt(merkletree.HashZero.BigInt()),
-				hashFromInt(revTreeRoot.BigInt()),
-				hashFromInt(merkletree.HashZero.BigInt())},
+			Hash: stateHash,
+			Children: []*merkletree.Hash{&merkletree.HashZero,
+				revTreeRoot, &merkletree.HashZero},
 		},
 	}
 	submitNodesToRHS(t, url, req)
-	return hashFromInt(state)
+	return stateHash
 }
 
 func buildTree(t testing.TB, revNonces []uint64) *merkletree.MerkleTree {
@@ -327,25 +260,20 @@ func saveTreeToRHS(t testing.TB, url string,
 	merkleTree *merkletree.MerkleTree) {
 	ctx := context.Background()
 	var req []proof.Node
-	hashOne := merkletree.NewHashFromBigInt(big.NewInt(1))
+	hashOne := hashFromInt(big.NewInt(1))
 	err := merkleTree.Walk(ctx, nil, func(node *merkletree.Node) {
 		nodeKey, err := node.Key()
 		require.NoError(t, err)
 		switch node.Type {
 		case merkletree.NodeTypeMiddle:
 			req = append(req, proof.Node{
-				Hash: hashFromHex(nodeKey.Hex()),
-				Children: []proof.Hash{
-					hashFromHex(node.ChildL.Hex()),
-					hashFromHex(node.ChildR.Hex())},
-			})
+				Hash:     nodeKey,
+				Children: []*merkletree.Hash{node.ChildL, node.ChildR}})
 		case merkletree.NodeTypeLeaf:
 			req = append(req, proof.Node{
-				Hash: hashFromHex(nodeKey.Hex()),
-				Children: []proof.Hash{
-					hashFromHex(node.Entry[0].Hex()),
-					hashFromHex(node.Entry[1].Hex()),
-					hashFromHex(hashOne.Hex())},
+				Hash: nodeKey,
+				Children: []*merkletree.Hash{node.Entry[0], node.Entry[1],
+					hashOne},
 			})
 		case merkletree.NodeTypeEmpty:
 			// do not save zero nodes
@@ -359,26 +287,27 @@ func saveTreeToRHS(t testing.TB, url string,
 	submitNodesToRHS(t, url, req)
 }
 
-func hashFromHex(in string) proof.Hash {
-	h, err := proof.NewHashFromHex(in)
+func hashFromHex(in string) *merkletree.Hash {
+	h, err := merkletree.NewHashFromHex(in)
 	if err != nil {
 		panic(err)
 	}
 	return h
 }
 
-func hashFromInt(in *big.Int) proof.Hash {
-	h, err := proof.NewHashFromBigInt(in)
+func mkProof(existence bool, siblings []*merkletree.Hash,
+	nodeAux *merkletree.NodeAux) *merkletree.Proof {
+	p, err := merkletree.NewProofFromData(existence, siblings, nodeAux)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
+func hashFromInt(in *big.Int) *merkletree.Hash {
+	h, err := merkletree.NewHashFromBigInt(in)
 	if err != nil {
 		panic(err)
 	}
 	return h
-}
-
-func hashFromTextInt(in string) proof.Hash {
-	i, ok := new(big.Int).SetString(in, 10)
-	if !ok {
-		panic(in)
-	}
-	return hashFromInt(i)
 }
