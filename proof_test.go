@@ -1,75 +1,134 @@
 package merkletree_proof
 
 import (
-	"math/big"
+	"encoding/json"
 	"testing"
 
-	"github.com/iden3/go-iden3-crypto/constants"
+	"github.com/iden3/go-merkletree-sql"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewHashFromBigInt(t *testing.T) {
+func TestNode_MarshalJSON(t *testing.T) {
 	testCases := []struct {
-		title   string
-		input   *big.Int
-		want    Hash
-		wantErr string
+		title string
+		in    Node
+		want  string
 	}{
 		{
-			title: "zero",
-			input: big.NewInt(0),
-			want:  Hash{},
+			title: "regular node",
+			in: Node{
+				Hash: hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
+				Children: []*merkletree.Hash{
+					hashFromHex("79f66791900bc0c9260f708e317437415b9f45673384f5b0752f5a649f661207"),
+					hashFromHex("f9b198c1da06c8cc8aedf408f2be2fd9def1818496924542c3194ceb7c70bb01"),
+					hashFromHex("4012c3753476058e08d36af518ba61ea65b49c0318af0bd976c95a931e257b28"),
+				},
+			},
+			want: `{
+  "hash": "20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222",
+  "children": [
+	"79f66791900bc0c9260f708e317437415b9f45673384f5b0752f5a649f661207",
+	"f9b198c1da06c8cc8aedf408f2be2fd9def1818496924542c3194ceb7c70bb01",
+	"4012c3753476058e08d36af518ba61ea65b49c0318af0bd976c95a931e257b28"
+  ]
+}`,
 		},
 		{
-			title: "one",
-			input: big.NewInt(1),
-			want:  Hash{0x01},
+			title: "empty children",
+			in: Node{
+				Hash:     hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
+				Children: []*merkletree.Hash{},
+			},
+			want: `{
+  "hash": "20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222",
+  "children": []
+}`,
 		},
 		{
-			title: "max",
-			input: new(big.Int).Sub(constants.Q, big.NewInt(1)),
-			want: Hash{
-				0x0, 0x0, 0x0, 0xf0, 0x93, 0xf5, 0xe1, 0x43,
-				0x91, 0x70, 0xb9, 0x79, 0x48, 0xe8, 0x33, 0x28,
-				0x5d, 0x58, 0x81, 0x81, 0xb6, 0x45, 0x50, 0xb8,
-				0x29, 0xa0, 0x31, 0xe1, 0x72, 0x4e, 0x64, 0x30},
-		},
-		{
-			title:   "too large",
-			input:   constants.Q,
-			wantErr: "big int out of field",
+			title: "nil children",
+			in: Node{
+				Hash:     hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
+				Children: nil,
+			},
+			want: `{
+  "hash": "20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222",
+  "children": null
+}`,
 		},
 	}
 	for i := range testCases {
 		tc := testCases[i]
 		t.Run(tc.title, func(t *testing.T) {
-			got, err := NewHashFromBigInt(tc.input)
-			if tc.wantErr == "" {
-				require.NoError(t, err)
-				require.Equal(t, tc.want, got)
-			} else {
-				require.EqualError(t, err, tc.wantErr)
-			}
+			result, err := json.Marshal(tc.in)
+			require.NoError(t, err)
+			require.JSONEq(t, tc.want, string(result))
 		})
 	}
 }
 
-func TestHash_Hex(t *testing.T) {
-	in := Hash{
-		0x0, 0x0, 0x0, 0xf0, 0x93, 0xf5, 0xe1, 0x43,
-		0x91, 0x70, 0xb9, 0x79, 0x48, 0xe8, 0x33, 0x28,
-		0x5d, 0x58, 0x81, 0x81, 0xb6, 0x45, 0x50, 0xb8,
-		0x29, 0xa0, 0x31, 0xe1, 0x72, 0x4e, 0x64, 0x30}
-	want := "000000f093f5e1439170b97948e833285d588181b64550b829a031e1724e6430"
-	require.Equal(t, want, in.Hex())
+func TestNode_UnmarshalJSON(t *testing.T) {
+	testCases := []struct {
+		title string
+		in    string
+		want  Node
+	}{
+		{
+			title: "regular node",
+			in: `{
+  "hash": "20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222",
+  "children": [
+	"79f66791900bc0c9260f708e317437415b9f45673384f5b0752f5a649f661207",
+	"f9b198c1da06c8cc8aedf408f2be2fd9def1818496924542c3194ceb7c70bb01",
+	"4012c3753476058e08d36af518ba61ea65b49c0318af0bd976c95a931e257b28"
+  ]
+}`,
+			want: Node{
+				Hash: hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
+				Children: []*merkletree.Hash{
+					hashFromHex("79f66791900bc0c9260f708e317437415b9f45673384f5b0752f5a649f661207"),
+					hashFromHex("f9b198c1da06c8cc8aedf408f2be2fd9def1818496924542c3194ceb7c70bb01"),
+					hashFromHex("4012c3753476058e08d36af518ba61ea65b49c0318af0bd976c95a931e257b28"),
+				},
+			},
+		},
+		{
+			title: "empty children",
+			in: `{
+  "hash": "20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222",
+  "children": []
+}`,
+			want: Node{
+				Hash:     hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
+				Children: []*merkletree.Hash{},
+			},
+		},
+		{
+			title: "nil children",
+			in: `{
+  "hash": "20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222",
+  "children": null
+}`,
+			want: Node{
+				Hash:     hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
+				Children: nil,
+			},
+		},
+	}
+	for i := range testCases {
+		tc := testCases[i]
+		t.Run(tc.title, func(t *testing.T) {
+			var n Node
+			err := json.Unmarshal([]byte(tc.in), &n)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, n)
+		})
+	}
 }
 
-func TestHash_Int(t *testing.T) {
-	in := Hash{
-		0x0, 0x0, 0x0, 0xf0, 0x93, 0xf5, 0xe1, 0x43,
-		0x91, 0x70, 0xb9, 0x79, 0x48, 0xe8, 0x33, 0x28,
-		0x5d, 0x58, 0x81, 0x81, 0xb6, 0x45, 0x50, 0xb8,
-		0x29, 0xa0, 0x31, 0xe1, 0x72, 0x4e, 0x64, 0x30}
-	want := new(big.Int).Sub(constants.Q, big.NewInt(1))
-	require.Equal(t, 0, in.Int().Cmp(want))
+func hashFromHex(in string) *merkletree.Hash {
+	h, err := merkletree.NewHashFromHex(in)
+	if err != nil {
+		panic(err)
+	}
+	return h
 }

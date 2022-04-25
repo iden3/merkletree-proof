@@ -3,7 +3,6 @@ package merkletree_proof
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,80 +11,48 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iden3/go-iden3-crypto/utils"
 	"github.com/iden3/go-merkletree-sql"
 )
 
-const (
-	jsonKeyHashKey   = "key"
-	jsonKeyHashValue = "value"
-)
-
 func init() {
-	var err error
-	hashOne, err = NewHashFromBigInt(big.NewInt(1))
+	hashOneP, err := merkletree.NewHashFromBigInt(big.NewInt(1))
 	if err != nil {
 		panic(err)
 	}
+	copy(hashOne[:], hashOneP[:])
 }
 
-type Hash [32]byte
+var hashOne merkletree.Hash
 
-var hashOne Hash
-
-func NewHashFromBigInt(i *big.Int) (Hash, error) {
-	var h Hash
-	if !utils.CheckBigIntInField(i) {
-		return h, errors.New("big int out of field")
-	}
-	copy(h[:], utils.SwapEndianness(i.Bytes()))
-	return h, nil
+type Node struct {
+	Hash     *merkletree.Hash
+	Children []*merkletree.Hash
 }
 
-func NewHashFromHex(in string) (Hash, error) {
-	var h Hash
-
-	hashBytes, err := hex.DecodeString(in)
-	if err != nil {
-		return h, err
-	}
-	if len(hashBytes) != len(h) {
-		return h, errors.New("invalid hash length")
-	}
-
-	copy(h[:], hashBytes)
-	return h, nil
+type jsonNode struct {
+	Hash     string   `json:"hash"`
+	Children []string `json:"children"`
 }
 
-func (h Hash) Hex() string {
-	return hex.EncodeToString(h[:])
-}
-
-func (h Hash) Int() *big.Int {
-	return new(big.Int).SetBytes(utils.SwapEndianness(h[:]))
-}
-
-func (h *Hash) UnmarshalText(data []byte) error {
-	h2, err := NewHashFromHex(string(data))
+func (n *Node) UnmarshalJSON(in []byte) error {
+	var jsonN jsonNode
+	err := json.Unmarshal(in, &jsonN)
 	if err != nil {
 		return err
 	}
-
-	if !utils.CheckBigIntInField(h2.Int()) {
-		return errors.New("big int out of field")
+	n.Hash, err = merkletree.NewHashFromHex(jsonN.Hash)
+	if err != nil {
+		return err
 	}
-
-	copy(h[:], h2[:])
-	return nil
+	n.Children, err = hexesToHashes(jsonN.Children)
+	return err
 }
 
-func (h Hash) MarshalText() ([]byte, error) {
-	return []byte(h.Hex()), nil
-}
-
-type Node struct {
-	Hash     Hash   `json:"hash"`
-	Children []Hash `json:"children"`
+func (n Node) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jsonNode{
+		Hash:     n.Hash.Hex(),
+		Children: hashesToHexes(n.Children),
+	})
 }
 
 type NodeType byte
@@ -138,17 +105,17 @@ func (cli *HTTPReverseHashCli) GenerateProof(treeRoot *merkletree.Hash,
 			}
 			// We found a leaf whose entry didn't match hIndex
 			nodeAux = &merkletree.NodeAux{
-				Key:   hashToMTHash(n.Children[0]),
-				Value: hashToMTHash(n.Children[1]),
+				Key:   n.Children[0],
+				Value: n.Children[1],
 			}
 			return mkProof()
 		case NodeTypeMiddle:
 			if merkletree.TestBit(key[:], depth) {
-				nextKey = hashToMTHash(n.Children[1])
-				siblings = append(siblings, hashToMTHash(n.Children[0]))
+				nextKey = n.Children[1]
+				siblings = append(siblings, n.Children[0])
 			} else {
-				nextKey = hashToMTHash(n.Children[0])
-				siblings = append(siblings, hashToMTHash(n.Children[1]))
+				nextKey = n.Children[0]
+				siblings = append(siblings, n.Children[1])
 			}
 		default:
 			return nil, fmt.Errorf(
@@ -232,7 +199,7 @@ func nodeType(node Node) NodeType {
 		return NodeTypeMiddle
 	}
 
-	if len(node.Children) == 3 && node.Children[2] == hashOne {
+	if len(node.Children) == 3 && *node.Children[2] == hashOne {
 		return NodeTypeLeaf
 	}
 
@@ -248,8 +215,28 @@ type nodeResponse struct {
 	Status string `json:"status"`
 }
 
-func hashToMTHash(hash Hash) *merkletree.Hash {
-	var h merkletree.Hash
-	copy(h[:], hash[:])
-	return &h
+func hashesToHexes(hashes []*merkletree.Hash) []string {
+	if hashes == nil {
+		return nil
+	}
+	hexes := make([]string, len(hashes))
+	for i, h := range hashes {
+		hexes[i] = h.Hex()
+	}
+	return hexes
+}
+
+func hexesToHashes(hexes []string) ([]*merkletree.Hash, error) {
+	if hexes == nil {
+		return nil, nil
+	}
+	hashes := make([]*merkletree.Hash, len(hexes))
+	var err error
+	for i, h := range hexes {
+		hashes[i], err = merkletree.NewHashFromHex(h)
+		if err != nil {
+			return nil, fmt.Errorf("can't parse hex #%v: %w", i, err)
+		}
+	}
+	return hashes, nil
 }

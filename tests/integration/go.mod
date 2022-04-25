@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	github.com/iden3/go-iden3-crypto v0.0.13
-	github.com/iden3/go-merkletree-sql v1.0.0-pre9
-	github.com/iden3/merkletree-proof v0.0.0-20220401032300-833dc7d5d8f5
+	github.com/iden3/go-merkletree-sql v1.0.1
+	github.com/iden3/merkletree-proof v0.0.0
 	github.com/stretchr/testify v1.7.1
 )
 
