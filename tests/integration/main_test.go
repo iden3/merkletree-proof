@@ -1,13 +1,9 @@
 package integration
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"math/big"
-	"net/http"
 	"os"
 	"testing"
 
@@ -237,25 +233,6 @@ func buildTree(t testing.TB, revNonces []uint64) *merkletree.MerkleTree {
 	}
 
 	return mt
-}
-
-func submitNodesToRHS(t testing.TB, url string, req []proof.Node) {
-	reqBytes, err := json.Marshal(req)
-	require.NoError(t, err)
-	bodyReader := bytes.NewReader(reqBytes)
-	httpReq, err := http.NewRequest(http.MethodPost, url+"/node", bodyReader)
-	require.NoError(t, err)
-
-	httpResp, err := http.DefaultClient.Do(httpReq)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, httpResp.Body.Close())
-	}()
-	respData, err := io.ReadAll(httpResp.Body)
-	require.NoError(t, err)
-
-	require.Equal(t, http.StatusOK, httpResp.StatusCode, string(respData))
-	require.Equal(t, `{"status":"OK"}`, string(respData))
 }
 
 func saveTreeToRHS(t testing.TB, rhsCli *proof.HTTPReverseHashCli,
