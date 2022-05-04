@@ -39,13 +39,13 @@ func TestProof(t *testing.T) {
 		11998794077335055257, // 14875578...  1 0 0 1 1 0 0 1
 	}
 	bigMerkleTree := buildTree(t, revNonces)
-	saveTreeToRHS(t, rhsUrl, bigMerkleTree)
+	saveTreeToRHS(t, rhsCli, bigMerkleTree)
 
 	oneNodeMerkleTree := buildTree(t, []uint64{5577006791947779410})
-	saveTreeToRHS(t, rhsUrl, oneNodeMerkleTree)
+	saveTreeToRHS(t, rhsCli, oneNodeMerkleTree)
 
 	t.Run("Test save state", func(t *testing.T) {
-		state := saveIdenStateToRHS(t, rhsUrl, bigMerkleTree)
+		state := saveIdenStateToRHS(t, rhsCli, bigMerkleTree)
 
 		revTreeRoot, err := getRevTreeRoot(rhsCli, state)
 		require.NoError(t, err)
@@ -167,7 +167,8 @@ func TestProof(t *testing.T) {
 			revNonceKey := hashFromInt(revNonceKeyInt)
 			revNonceValueInt := big.NewInt(0)
 
-			proofGen, err := rhsCli.GenerateProof(tc.revTreeRoot, revNonceKey)
+			proofGen, err := rhsCli.GenerateProof(context.Background(),
+				tc.revTreeRoot, revNonceKey)
 			if tc.wantErr == "" {
 				require.NoError(t, err)
 				require.Equal(t, tc.wantProof, proofGen)
@@ -185,7 +186,7 @@ func TestProof(t *testing.T) {
 
 func getRevTreeRoot(rhsCli *proof.HTTPReverseHashCli,
 	state *merkletree.Hash) (*merkletree.Hash, error) {
-	stateNode, err := rhsCli.GetNode(state)
+	stateNode, err := rhsCli.GetNode(context.Background(), state)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +200,7 @@ func getRevTreeRoot(rhsCli *proof.HTTPReverseHashCli,
 	return stateNode.Children[1], nil
 }
 
-func saveIdenStateToRHS(t testing.TB, url string,
+func saveIdenStateToRHS(t testing.TB, rhsCli *proof.HTTPReverseHashCli,
 	merkleTree *merkletree.MerkleTree) *merkletree.Hash {
 
 	revTreeRoot := merkleTree.Root()
@@ -215,7 +216,8 @@ func saveIdenStateToRHS(t testing.TB, url string,
 				revTreeRoot, &merkletree.HashZero},
 		},
 	}
-	submitNodesToRHS(t, url, req)
+	err = rhsCli.SaveNodes(context.Background(), req)
+	require.NoError(t, err)
 	return stateHash
 }
 
@@ -256,7 +258,7 @@ func submitNodesToRHS(t testing.TB, url string, req []proof.Node) {
 	require.Equal(t, `{"status":"OK"}`, string(respData))
 }
 
-func saveTreeToRHS(t testing.TB, url string,
+func saveTreeToRHS(t testing.TB, rhsCli *proof.HTTPReverseHashCli,
 	merkleTree *merkletree.MerkleTree) {
 	ctx := context.Background()
 	var req []proof.Node
@@ -284,7 +286,8 @@ func saveTreeToRHS(t testing.TB, url string,
 	})
 	require.NoError(t, err)
 
-	submitNodesToRHS(t, url, req)
+	err = rhsCli.SaveNodes(context.Background(), req)
+	require.NoError(t, err)
 }
 
 func hashFromHex(in string) *merkletree.Hash {

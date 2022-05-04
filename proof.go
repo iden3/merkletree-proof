@@ -73,7 +73,8 @@ type HTTPReverseHashCli struct {
 
 // GenerateProof generates proof of existence or in-existence of a key in
 // a tree identified by a treeRoot.
-func (cli *HTTPReverseHashCli) GenerateProof(treeRoot *merkletree.Hash,
+func (cli *HTTPReverseHashCli) GenerateProof(ctx context.Context,
+	treeRoot *merkletree.Hash,
 	key *merkletree.Hash) (*merkletree.Proof, error) {
 
 	if cli.URL == "" {
@@ -93,7 +94,7 @@ func (cli *HTTPReverseHashCli) GenerateProof(treeRoot *merkletree.Hash,
 		if *nextKey == merkletree.HashZero {
 			return mkProof()
 		}
-		n, err := cli.GetNode(nextKey)
+		n, err := cli.GetNode(ctx, nextKey)
 		if err != nil {
 			return nil, err
 		}
@@ -128,11 +129,11 @@ func (cli *HTTPReverseHashCli) GenerateProof(treeRoot *merkletree.Hash,
 }
 
 func (cli *HTTPReverseHashCli) nodeURL(node *merkletree.Hash) string {
-	nodeURL := cli.baseURL() + "/node/"
+	nodeURL := cli.baseURL() + "/node"
 	if node == nil {
 		return nodeURL
 	}
-	return nodeURL + node.Hex()
+	return nodeURL + "/" + node.Hex()
 }
 
 func (cli *HTTPReverseHashCli) baseURL() string {
@@ -146,14 +147,18 @@ func (cli *HTTPReverseHashCli) getHttpTimeout() time.Duration {
 	return cli.HTTPTimeout
 }
 
-func (cli *HTTPReverseHashCli) GetNode(hash *merkletree.Hash) (Node, error) {
+func (cli *HTTPReverseHashCli) GetNode(ctx context.Context,
+	hash *merkletree.Hash) (Node, error) {
+
 	if hash == nil {
 		return Node{}, errors.New("hash is nil")
 	}
 
-	ctx, cancel :=
-		context.WithTimeout(context.Background(), cli.getHttpTimeout())
-	defer cancel()
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cli.getHttpTimeout())
+		defer cancel()
+	}
 
 	httpReq, err := http.NewRequestWithContext(
 		ctx, http.MethodGet, cli.nodeURL(hash), http.NoBody)
@@ -165,8 +170,8 @@ func (cli *HTTPReverseHashCli) GetNode(hash *merkletree.Hash) (Node, error) {
 	if err != nil {
 		return Node{}, err
 	}
+	defer func() { _ = httpResp.Body.Close() }()
 
-	defer httpResp.Body.Close()
 	if httpResp.StatusCode == http.StatusNotFound {
 		var resp map[string]interface{}
 		dec := json.NewDecoder(httpResp.Body)
@@ -192,6 +197,52 @@ func (cli *HTTPReverseHashCli) GetNode(hash *merkletree.Hash) (Node, error) {
 	}
 
 	return nodeResp.Node, nil
+}
+
+func (cli *HTTPReverseHashCli) SaveNodes(ctx context.Context,
+	nodes []Node) error {
+
+	reqBytes, err := json.Marshal(nodes)
+	if err != nil {
+		return err
+	}
+
+	// if no timeout set on context, set it here
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cli.getHttpTimeout())
+		defer cancel()
+	}
+
+	bodyReader := bytes.NewReader(reqBytes)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		cli.nodeURL(nil), bodyReader)
+	if err != nil {
+		return err
+	}
+
+	httpResp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = httpResp.Body.Close() }()
+
+	if httpResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", httpResp.StatusCode)
+	}
+
+	dec := json.NewDecoder(httpResp.Body)
+	var respM map[string]interface{}
+	err = dec.Decode(&respM)
+	if err != nil {
+		return fmt.Errorf("unable to decode RHS response: %w", err)
+	}
+
+	if respM["status"] != "OK" {
+		return fmt.Errorf("unexpected RHS response status: %s", respM["status"])
+	}
+
+	return nil
 }
 
 func nodeType(node Node) NodeType {
