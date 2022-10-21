@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/iden3/go-merkletree-sql"
-	"github.com/iden3/go-merkletree-sql/db/memory"
+	"github.com/iden3/go-merkletree-sql/v2"
+	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	proof "github.com/iden3/merkletree-proof"
 )
 

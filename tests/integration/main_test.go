@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/iden3/go-iden3-crypto/poseidon"
-	"github.com/iden3/go-merkletree-sql"
-	"github.com/iden3/go-merkletree-sql/db/memory"
+	"github.com/iden3/go-merkletree-sql/v2"
+	"github.com/iden3/go-merkletree-sql/v2/db/memory"
 	proof "github.com/iden3/merkletree-proof"
 	"github.com/stretchr/testify/require"
 )

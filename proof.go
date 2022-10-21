@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iden3/go-merkletree-sql"
+	"github.com/iden3/go-merkletree-sql/v2"
 )
 
 func init() {
