@@ -1,6 +1,6 @@
 module github.com/iden3/merkletree-proof
 
-go 1.18
+go 1.19
 
 require (
 	github.com/iden3/go-merkletree-sql/v2 v2.0.2
