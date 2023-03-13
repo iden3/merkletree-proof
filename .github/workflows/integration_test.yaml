@@ -12,8 +12,14 @@ jobs:
     container: golang:1.18.2-bullseye
     steps:
       - uses: actions/checkout@v2
-      - name: Download modules
-        run: go mod tidy
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            /go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
       - name: Integration Tests
         run: go test -v -race ./...
         working-directory: tests/integration
@@ -35,3 +41,4 @@ jobs:
           POSTGRES_PASSWORD: pgpwd
         volumes:
           - vrhs:/docker-entrypoint-initdb.d
+
