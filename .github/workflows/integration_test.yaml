@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-20.04
-    container: golang:1.19.7-bullseye
+    container: golang:1.18.2-bullseye
     steps:
       - uses: actions/checkout@v2
       - name: Download modules
