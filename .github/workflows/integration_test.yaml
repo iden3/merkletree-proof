@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-20.04
-    container: golang:1.18.0-bullseye
+    container: golang:1.18.2-bullseye
     steps:
       - uses: actions/checkout@v2
       - uses: actions/cache@v2
@@ -41,3 +41,4 @@ jobs:
           POSTGRES_PASSWORD: pgpwd
         volumes:
           - vrhs:/docker-entrypoint-initdb.d
+
