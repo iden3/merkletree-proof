@@ -3,8 +3,8 @@ module github.com/iden3/merkletree-proof/tests/integration
 go 1.18
 
 require (
-	github.com/iden3/go-iden3-crypto v0.0.14
-	github.com/iden3/go-merkletree-sql/v2 v2.0.2
+	github.com/iden3/go-iden3-crypto v0.0.15
+	github.com/iden3/go-merkletree-sql/v2 v2.0.4
 	github.com/iden3/merkletree-proof v0.0.0
 	github.com/stretchr/testify v1.8.2
 )
