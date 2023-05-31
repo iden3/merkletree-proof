@@ -22,7 +22,7 @@ Identity state must be fetched from the blockchain [State contract](https://docs
 ```go
 stateHash, _ := merkletree.NewHashFromHex("e12084d0d72c492c703a2053b371026bceda40afb9089c325652dfd2e5e11223")
 
-cli := &merkletree_proof.HTTPReverseHashCli{URL: "https://rhs-staging.polygonid.me"}
+cli := &merkletree_proof.HTTPReverseHashCli{URL: "<link to RHS>"}
 // get identity state roots
 
 stateValues, err := cli.GetNode(ctx, stateHash)
