@@ -1,6 +1,6 @@
 # merkletree-proof
 Merkletree proof is a complementary library for [reverse hash service](https://github.com/iden3/reverse-hash-service) to
-fetch iden3 identity state roots and generation [Sparse Merkle Tree proofs](https://github.com/iden3/go-merkletree-sql). 
+fetch iden3 identity state roots and generate [Sparse Merkle Tree proofs](https://github.com/iden3/go-merkletree-sql). 
 
 ## Docs
 
