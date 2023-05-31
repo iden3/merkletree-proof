@@ -36,7 +36,7 @@ Generate proof for revocation nonce `670966937` and revocation root `b92f0620260
 revocationNonce, _ := merkletree.NewHashFromBigInt(big.NewInt(670966937))
 revocationRoot, _ := merkletree.NewHashFromHex("b92f062026083232bdd4d3a93986276515aa874fd3f7e928d6f67c8c91a6b705")
 
-cli := &proof.HTTPReverseHashCli{URL: "https://rhs-staging.polygonid.me"}
+cli := &proof.HTTPReverseHashCli{URL: "<link to RHS>"}
 proof, _ := cli.GenerateProof(ctx, revocationRoot, revocationNonce)
 ```
 
