@@ -9,7 +9,8 @@ import (
 
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
-	proof "github.com/iden3/merkletree-proof"
+	"github.com/iden3/merkletree-proof/common"
+	proof "github.com/iden3/merkletree-proof/http"
 )
 
 var hashOne *merkletree.Hash
@@ -89,10 +90,10 @@ func walkRHSLeafs(cli *proof.HTTPReverseHashCli, root *merkletree.Hash,
 	}
 }
 
-func nodesFromTree(tree *merkletree.MerkleTree) []proof.Node {
+func nodesFromTree(tree *merkletree.MerkleTree) []common.Node {
 	ctx := context.Background()
 
-	var nodes []proof.Node
+	var nodes []common.Node
 	err := tree.Walk(ctx, nil, func(node *merkletree.Node) {
 		nodeKey, err := node.Key()
 		if err != nil {
@@ -100,11 +101,11 @@ func nodesFromTree(tree *merkletree.MerkleTree) []proof.Node {
 		}
 		switch node.Type {
 		case merkletree.NodeTypeMiddle:
-			nodes = append(nodes, proof.Node{
+			nodes = append(nodes, common.Node{
 				Hash:     nodeKey,
 				Children: []*merkletree.Hash{node.ChildL, node.ChildR}})
 		case merkletree.NodeTypeLeaf:
-			nodes = append(nodes, proof.Node{
+			nodes = append(nodes, common.Node{
 				Hash: nodeKey,
 				Children: []*merkletree.Hash{node.Entry[0], node.Entry[1],
 					hashOne},

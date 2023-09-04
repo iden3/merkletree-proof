@@ -10,7 +10,8 @@ import (
 	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
-	proof "github.com/iden3/merkletree-proof"
+	"github.com/iden3/merkletree-proof/common"
+	proof "github.com/iden3/merkletree-proof/http"
 	"github.com/stretchr/testify/require"
 )
 
@@ -205,7 +206,7 @@ func saveIdenStateToRHS(t testing.TB, rhsCli *proof.HTTPReverseHashCli,
 	require.NoError(t, err)
 
 	stateHash := hashFromInt(state)
-	req := []proof.Node{
+	req := []common.Node{
 		{
 			Hash: stateHash,
 			Children: []*merkletree.Hash{&merkletree.HashZero,
@@ -238,18 +239,18 @@ func buildTree(t testing.TB, revNonces []uint64) *merkletree.MerkleTree {
 func saveTreeToRHS(t testing.TB, rhsCli *proof.HTTPReverseHashCli,
 	merkleTree *merkletree.MerkleTree) {
 	ctx := context.Background()
-	var req []proof.Node
+	var req []common.Node
 	hashOne := hashFromInt(big.NewInt(1))
 	err := merkleTree.Walk(ctx, nil, func(node *merkletree.Node) {
 		nodeKey, err := node.Key()
 		require.NoError(t, err)
 		switch node.Type {
 		case merkletree.NodeTypeMiddle:
-			req = append(req, proof.Node{
+			req = append(req, common.Node{
 				Hash:     nodeKey,
 				Children: []*merkletree.Hash{node.ChildL, node.ChildR}})
 		case merkletree.NodeTypeLeaf:
-			req = append(req, proof.Node{
+			req = append(req, common.Node{
 				Hash: nodeKey,
 				Children: []*merkletree.Hash{node.Entry[0], node.Entry[1],
 					hashOne},

@@ -1,22 +1,23 @@
-package merkletree_proof
+package http
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/iden3/go-merkletree-sql/v2"
+	"github.com/iden3/merkletree-proof/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNode_MarshalJSON(t *testing.T) {
 	testCases := []struct {
 		title string
-		in    Node
+		in    common.Node
 		want  string
 	}{
 		{
 			title: "regular node",
-			in: Node{
+			in: common.Node{
 				Hash: hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
 				Children: []*merkletree.Hash{
 					hashFromHex("79f66791900bc0c9260f708e317437415b9f45673384f5b0752f5a649f661207"),
@@ -35,7 +36,7 @@ func TestNode_MarshalJSON(t *testing.T) {
 		},
 		{
 			title: "empty children",
-			in: Node{
+			in: common.Node{
 				Hash:     hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
 				Children: []*merkletree.Hash{},
 			},
@@ -46,7 +47,7 @@ func TestNode_MarshalJSON(t *testing.T) {
 		},
 		{
 			title: "nil children",
-			in: Node{
+			in: common.Node{
 				Hash:     hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
 				Children: nil,
 			},
@@ -70,7 +71,7 @@ func TestNode_UnmarshalJSON(t *testing.T) {
 	testCases := []struct {
 		title string
 		in    string
-		want  Node
+		want  common.Node
 	}{
 		{
 			title: "regular node",
@@ -82,7 +83,7 @@ func TestNode_UnmarshalJSON(t *testing.T) {
 	"4012c3753476058e08d36af518ba61ea65b49c0318af0bd976c95a931e257b28"
   ]
 }`,
-			want: Node{
+			want: common.Node{
 				Hash: hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
 				Children: []*merkletree.Hash{
 					hashFromHex("79f66791900bc0c9260f708e317437415b9f45673384f5b0752f5a649f661207"),
@@ -97,7 +98,7 @@ func TestNode_UnmarshalJSON(t *testing.T) {
   "hash": "20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222",
   "children": []
 }`,
-			want: Node{
+			want: common.Node{
 				Hash:     hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
 				Children: []*merkletree.Hash{},
 			},
@@ -108,7 +109,7 @@ func TestNode_UnmarshalJSON(t *testing.T) {
   "hash": "20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222",
   "children": null
 }`,
-			want: Node{
+			want: common.Node{
 				Hash:     hashFromHex("20a8bc6b66482191ad30d7c0a95e7a512297f0a2da9fccc0803b0b03aa3f5222"),
 				Children: nil,
 			},
@@ -117,7 +118,7 @@ func TestNode_UnmarshalJSON(t *testing.T) {
 	for i := range testCases {
 		tc := testCases[i]
 		t.Run(tc.title, func(t *testing.T) {
-			var n Node
+			var n common.Node
 			err := json.Unmarshal([]byte(tc.in), &n)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, n)

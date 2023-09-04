@@ -1,4 +1,4 @@
-package merkletree_proof
+package http
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/iden3/go-merkletree-sql/v2"
+	"github.com/iden3/merkletree-proof/common"
 )
 
 func init() {
@@ -24,44 +25,11 @@ func init() {
 
 var hashOne merkletree.Hash
 
-type Node struct {
-	Hash     *merkletree.Hash
-	Children []*merkletree.Hash
-}
-
-type jsonNode struct {
-	Hash     string   `json:"hash"`
-	Children []string `json:"children"`
-}
-
-func (n *Node) UnmarshalJSON(in []byte) error {
-	var jsonN jsonNode
-	err := json.Unmarshal(in, &jsonN)
-	if err != nil {
-		return err
-	}
-	n.Hash, err = merkletree.NewHashFromHex(jsonN.Hash)
-	if err != nil {
-		return err
-	}
-	n.Children, err = hexesToHashes(jsonN.Children)
-	return err
-}
-
-func (n Node) MarshalJSON() ([]byte, error) {
-	return json.Marshal(jsonNode{
-		Hash:     n.Hash.Hex(),
-		Children: hashesToHexes(n.Children),
-	})
-}
-
-type NodeType byte
-
 const (
-	NodeTypeUnknown NodeType = iota
-	NodeTypeMiddle  NodeType = iota
-	NodeTypeLeaf    NodeType = iota
-	NodeTypeState   NodeType = iota
+	NodeTypeUnknown common.NodeType = iota
+	NodeTypeMiddle  common.NodeType = iota
+	NodeTypeLeaf    common.NodeType = iota
+	NodeTypeState   common.NodeType = iota
 )
 
 var ErrNodeNotFound = errors.New("node not found")
@@ -148,10 +116,10 @@ func (cli *HTTPReverseHashCli) getHttpTimeout() time.Duration {
 }
 
 func (cli *HTTPReverseHashCli) GetNode(ctx context.Context,
-	hash *merkletree.Hash) (Node, error) {
+	hash *merkletree.Hash) (common.Node, error) {
 
 	if hash == nil {
-		return Node{}, errors.New("hash is nil")
+		return common.Node{}, errors.New("hash is nil")
 	}
 
 	if _, ok := ctx.Deadline(); !ok {
@@ -163,12 +131,12 @@ func (cli *HTTPReverseHashCli) GetNode(ctx context.Context,
 	httpReq, err := http.NewRequestWithContext(
 		ctx, http.MethodGet, cli.nodeURL(hash), http.NoBody)
 	if err != nil {
-		return Node{}, err
+		return common.Node{}, err
 	}
 
 	httpResp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		return Node{}, err
+		return common.Node{}, err
 	}
 	defer func() { _ = httpResp.Body.Close() }()
 
@@ -177,15 +145,15 @@ func (cli *HTTPReverseHashCli) GetNode(ctx context.Context,
 		dec := json.NewDecoder(httpResp.Body)
 		err := dec.Decode(&resp)
 		if err != nil {
-			return Node{}, err
+			return common.Node{}, err
 		}
 		if resp["status"] == "not found" {
-			return Node{}, ErrNodeNotFound
+			return common.Node{}, ErrNodeNotFound
 		} else {
-			return Node{}, errors.New("unexpected response")
+			return common.Node{}, errors.New("unexpected response")
 		}
 	} else if httpResp.StatusCode != http.StatusOK {
-		return Node{}, fmt.Errorf("unexpected response: %v",
+		return common.Node{}, fmt.Errorf("unexpected response: %v",
 			httpResp.StatusCode)
 	}
 
@@ -193,14 +161,14 @@ func (cli *HTTPReverseHashCli) GetNode(ctx context.Context,
 	dec := json.NewDecoder(httpResp.Body)
 	err = dec.Decode(&nodeResp)
 	if err != nil {
-		return Node{}, err
+		return common.Node{}, err
 	}
 
 	return nodeResp.Node, nil
 }
 
 func (cli *HTTPReverseHashCli) SaveNodes(ctx context.Context,
-	nodes []Node) error {
+	nodes []common.Node) error {
 
 	reqBytes, err := json.Marshal(nodes)
 	if err != nil {
@@ -245,7 +213,7 @@ func (cli *HTTPReverseHashCli) SaveNodes(ctx context.Context,
 	return nil
 }
 
-func nodeType(node Node) NodeType {
+func nodeType(node common.Node) common.NodeType {
 	if len(node.Children) == 2 {
 		return NodeTypeMiddle
 	}
@@ -262,32 +230,6 @@ func nodeType(node Node) NodeType {
 }
 
 type nodeResponse struct {
-	Node   Node   `json:"node"`
-	Status string `json:"status"`
-}
-
-func hashesToHexes(hashes []*merkletree.Hash) []string {
-	if hashes == nil {
-		return nil
-	}
-	hexes := make([]string, len(hashes))
-	for i, h := range hashes {
-		hexes[i] = h.Hex()
-	}
-	return hexes
-}
-
-func hexesToHashes(hexes []string) ([]*merkletree.Hash, error) {
-	if hexes == nil {
-		return nil, nil
-	}
-	hashes := make([]*merkletree.Hash, len(hexes))
-	var err error
-	for i, h := range hexes {
-		hashes[i], err = merkletree.NewHashFromHex(h)
-		if err != nil {
-			return nil, fmt.Errorf("can't parse hex #%v: %w", i, err)
-		}
-	}
-	return hashes, nil
+	Node   common.Node `json:"node"`
+	Status string      `json:"status"`
 }
