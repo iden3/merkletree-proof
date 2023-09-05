@@ -2,18 +2,28 @@ package integration
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/iden3/go-merkletree-sql/v2"
-	"github.com/iden3/merkletree-proof/common"
 	"github.com/iden3/merkletree-proof/eth"
 	"github.com/stretchr/testify/assert"
 )
 
 func createMockEthRpcReverseHashCli() *eth.EthRpcReverseHashCli {
-	cli, err := eth.NewEthRpcReverseHashCli("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0", "")
+	pk, err := hex.DecodeString("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+	if err != nil {
+		panic(err)
+	}
+
+	signer := &eth.MockSigner{
+		PrivateKey: pk,
+		ChainId:    big.NewInt(31337),
+	}
+
+	cli, err := eth.NewEthRpcReverseHashCli("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0", "", signer)
 	if err != nil {
 		panic(err)
 	}
@@ -45,7 +55,11 @@ func TestEthRpcReverseHashCli_GetNode(t *testing.T) {
 
 func TestEthRpcReverseHashCli_SaveNodes(t *testing.T) {
 	cli := createMockEthRpcReverseHashCli()
-	nodes := []common.Node{}
+	// TODO rewrite to nodes := []common.Node{}
+	nodes := make([]*big.Int, 3)
+	nodes[0] = big.NewInt(2)
+	nodes[1] = big.NewInt(3)
+	nodes[2] = big.NewInt(4)
 
 	err := cli.SaveNodes(context.Background(), nodes)
 

@@ -45,3 +45,8 @@ type Client interface {
 	SendRawTx(ctx context.Context, tx *types.Transaction) error
 	getGasPrice(ctx context.Context) (*big.Int, error)
 }
+
+type Signer interface {
+	Sign([]byte) ([]byte, error)
+	SignerFn() func(common.Address, *types.Transaction) (*types.Transaction, error)
+}
