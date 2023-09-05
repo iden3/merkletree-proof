@@ -14,20 +14,15 @@ type MockSigner struct {
 	ChainId    *big.Int
 }
 
-func (s *MockSigner) Sign(data []byte) ([]byte, error) {
-	privKey, err := crypto.ToECDSA(s.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	sig, err := crypto.Sign(data, privKey)
-	return sig, err
+func (s *MockSigner) getPrivateKey() (*ecdsa.PrivateKey, error) {
+	return crypto.ToECDSA(s.PrivateKey)
 }
 
 func (s *MockSigner) SignerFn() func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 	return func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 		signer := types.LatestSignerForChainID(s.ChainId)
 		h := signer.Hash(tx)
-		sig, err := s.Sign(h[:])
+		sig, err := s.sign(h[:])
 		if err != nil {
 			return nil, err
 		}
@@ -36,7 +31,7 @@ func (s *MockSigner) SignerFn() func(address common.Address, tx *types.Transacti
 }
 
 func (s *MockSigner) PublicKey() (ecdsa.PublicKey, error) {
-	privKey, err := crypto.ToECDSA(s.PrivateKey)
+	privKey, err := s.getPrivateKey()
 	if err != nil {
 		return ecdsa.PublicKey{}, err
 	}
@@ -49,4 +44,13 @@ func (s *MockSigner) Address() (common.Address, error) {
 		return common.Address{}, err
 	}
 	return crypto.PubkeyToAddress(pubKey), nil
+}
+
+func (s *MockSigner) sign(data []byte) ([]byte, error) {
+	privKey, err := s.getPrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	sig, err := crypto.Sign(data, privKey)
+	return sig, err
 }

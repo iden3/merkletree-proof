@@ -3,7 +3,6 @@ package integration
 import (
 	"context"
 	"encoding/hex"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -30,29 +29,6 @@ func createMockEthRpcReverseHashCli() *eth.EthRpcReverseHashCli {
 	return cli
 }
 
-func TestEthRpcReverseHashCli_GenerateProof(t *testing.T) {
-	cli := createMockEthRpcReverseHashCli()
-	treeRoot := &merkletree.Hash{}
-	key := &merkletree.Hash{}
-
-	proof, err := cli.GenerateProof(context.Background(), treeRoot, key)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, proof)
-}
-
-func TestEthRpcReverseHashCli_GetNode(t *testing.T) {
-	cli := createMockEthRpcReverseHashCli()
-
-	id, _ := big.NewInt(0).SetString("19392314395028218855071922567043158305035792433175725594195224138645494498149", 10)
-	node, err := cli.GetNode(context.Background(), id)
-
-	fmt.Println(node)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, node)
-}
-
 func TestEthRpcReverseHashCli_SaveNodes(t *testing.T) {
 	cli := createMockEthRpcReverseHashCli()
 	// TODO rewrite to nodes := []common.Node{}
@@ -64,4 +40,26 @@ func TestEthRpcReverseHashCli_SaveNodes(t *testing.T) {
 	err := cli.SaveNodes(context.Background(), nodes)
 
 	assert.NoError(t, err)
+}
+
+func TestEthRpcReverseHashCli_GetNode(t *testing.T) {
+	cli := createMockEthRpcReverseHashCli()
+
+	id, _ := big.NewInt(0).SetString("19392314395028218855071922567043158305035792433175725594195224138645494498149", 10)
+	node, err := cli.GetNode(context.Background(), id)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, node)
+	assert.Equal(t, len(node.Children), 3)
+}
+
+func TestEthRpcReverseHashCli_GenerateProof(t *testing.T) {
+	cli := createMockEthRpcReverseHashCli()
+	treeRoot := &merkletree.Hash{}
+	key := &merkletree.Hash{}
+
+	proof, err := cli.GenerateProof(context.Background(), treeRoot, key)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, proof)
 }
