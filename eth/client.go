@@ -20,7 +20,7 @@ type ClientConfig struct {
 	WaitBlockCycleTime     time.Duration `json:"wait_block_cycle_time_out"`
 }
 
-type Signer interface {
+type CliSigner interface {
 	Address() (common.Address, error)
-	SignerFn() func(common.Address, *types.Transaction) (*types.Transaction, error)
+	SignerFn(common.Address, *types.Transaction) (*types.Transaction, error)
 }

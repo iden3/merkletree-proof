@@ -16,13 +16,13 @@ import (
 )
 
 type EthRpcReverseHashCli struct {
-	Config   *ClientConfig
-	Client   *ethclient.Client
-	Contract *contracts.OnchainIdentityTreeStore
-	Signer   Signer
+	Config    *ClientConfig
+	Client    *ethclient.Client
+	Contract  *contracts.OnchainIdentityTreeStore
+	CliSigner CliSigner // TODO Consider better naming
 }
 
-func NewEthRpcReverseHashCli(onChainTreeAddress string, ethereumNodeURL string, signer Signer) (*EthRpcReverseHashCli, error) {
+func NewEthRpcReverseHashCli(onChainTreeAddress string, ethereumNodeURL string, signer CliSigner) (*EthRpcReverseHashCli, error) {
 	config := &ClientConfig{
 		ReceiptTimeout:         5 * time.Second,
 		ConfirmationTimeout:    10 * time.Second,
@@ -53,10 +53,10 @@ func NewEthRpcReverseHashCli(onChainTreeAddress string, ethereumNodeURL string, 
 	}
 
 	return &EthRpcReverseHashCli{
-		Config:   config,
-		Client:   cl,
-		Contract: contract,
-		Signer:   signer,
+		Config:    config,
+		Client:    cl,
+		Contract:  contract,
+		CliSigner: signer,
 	}, nil
 }
 
@@ -88,7 +88,7 @@ func (c *EthRpcReverseHashCli) GetNode(ctx context.Context, id *big.Int) (common
 func (c *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 	nodes []*big.Int) error {
 
-	addr, err := c.Signer.Address()
+	addr, err := c.CliSigner.Address()
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (c *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 	// TODO consider if evaluate gas price and hardcap limit is needed
 	txOpts := &bind.TransactOpts{
 		From:      addr,
-		Signer:    c.Signer.SignerFn(),
+		Signer:    c.CliSigner.SignerFn,
 		GasFeeCap: c.Config.MaxGasPrice,
 		GasTipCap: c.Config.MinGasPrice,
 		Context:   ctx,
