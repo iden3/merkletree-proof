@@ -2,9 +2,10 @@ package eth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
-	"time"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -18,57 +19,49 @@ import (
 type EthRpcReverseHashCli struct {
 	Config    *ClientConfig
 	Client    *ethclient.Client
-	Contract  *contracts.OnchainIdentityTreeStore
+	Contract  *contracts.IdentityTreeStore
 	CliSigner CliSigner // TODO Consider better naming
 }
 
-func NewEthRpcReverseHashCli(onChainTreeAddress string, ethereumNodeURL string, signer CliSigner) (*EthRpcReverseHashCli, error) {
-	config := &ClientConfig{
-		ReceiptTimeout:         5 * time.Second,
-		ConfirmationTimeout:    10 * time.Second,
-		ConfirmationBlockCount: 6,
-		DefaultGasLimit:        21000,
-		MinGasPrice:            big.NewInt(1000000000),
-		MaxGasPrice:            big.NewInt(2000000000),
-		RPCResponseTimeout:     5 * time.Second,
-		WaitReceiptCycleTime:   1 * time.Second,
-		WaitBlockCycleTime:     1 * time.Second,
-	}
+func NewEthRpcReverseHashCli(
+	contractAddress string, rpcUrl string, signer CliSigner, config *ClientConfig,
+) (*EthRpcReverseHashCli, error) {
 
-	url := ethereumNodeURL
-	if ethereumNodeURL == "" {
-		url = "http://127.0.0.1:8545"
-	}
-
-	cl, err := ethclient.Dial(url)
+	ethClient, err := ethclient.Dial(rpcUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Ethereum node: %s", err)
 	}
 
-	addr := ethcommon.HexToAddress(onChainTreeAddress)
+	addr := ethcommon.HexToAddress(contractAddress)
 
-	contract, err := contracts.NewOnchainIdentityTreeStore(addr, cl)
+	contract, err := contracts.NewIdentityTreeStore(addr, ethClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate a smart contract: %s", err)
 	}
 
 	return &EthRpcReverseHashCli{
 		Config:    config,
-		Client:    cl,
+		Client:    ethClient,
 		Contract:  contract,
 		CliSigner: signer,
 	}, nil
 }
 
-func (c *EthRpcReverseHashCli) GenerateProof(ctx context.Context,
+func (cli *EthRpcReverseHashCli) GenerateProof(ctx context.Context,
 	treeRoot *merkletree.Hash,
 	key *merkletree.Hash) (*merkletree.Proof, error) {
-	return &merkletree.Proof{}, nil
+
+	return common.GenerateProof(ctx, cli, treeRoot, key)
 }
 
-func (c *EthRpcReverseHashCli) GetNode(ctx context.Context, id *big.Int) (common.Node, error) {
-	children, err := c.Contract.GetNode(nil, id)
+func (cli *EthRpcReverseHashCli) GetNode(ctx context.Context, hash *merkletree.Hash) (common.Node, error) {
+	id := hash.BigInt()
+
+	children, err := cli.Contract.GetNode(nil, id)
 	if err != nil {
+		if strings.Contains(err.Error(), "Node not found") {
+			return common.Node{}, errors.New("node not found")
+		}
 		return common.Node{}, err
 	}
 
@@ -78,17 +71,16 @@ func (c *EthRpcReverseHashCli) GetNode(ctx context.Context, id *big.Int) (common
 		childrenHashes[i] = b
 	}
 
-	hash, _ := merkletree.NewHashFromBigInt(id)
 	return common.Node{
 		Hash:     hash,
 		Children: childrenHashes,
 	}, nil
 }
 
-func (c *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
-	nodes []*big.Int) error {
+func (cli *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
+	nodes []common.Node) error {
 
-	addr, err := c.CliSigner.Address()
+	addr, err := cli.CliSigner.Address()
 	if err != nil {
 		return err
 	}
@@ -96,28 +88,36 @@ func (c *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 	// TODO consider if evaluate gas price and hardcap limit is needed
 	txOpts := &bind.TransactOpts{
 		From:      addr,
-		Signer:    c.CliSigner.SignerFn,
-		GasFeeCap: c.Config.MaxGasPrice,
-		GasTipCap: c.Config.MinGasPrice,
+		Signer:    cli.CliSigner.SignerFn,
+		GasFeeCap: cli.Config.MaxGasPrice,
+		GasTipCap: cli.Config.MinGasPrice,
 		Context:   ctx,
 		NoSend:    false,
 	}
 
-	addNodeTx, err := c.Contract.AddNode(txOpts, nodes)
+	nodesBigInt := make([][]*big.Int, len(nodes))
+	for i, node := range nodes {
+		nodesBigInt[i] = make([]*big.Int, len(node.Children))
+		for j, child := range node.Children {
+			nodesBigInt[i][j] = child.BigInt()
+		}
+	}
+
+	saveNodeTx, err := cli.Contract.SaveNodes(txOpts, nodesBigInt)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("addNodeTx", addNodeTx.Hash().Hex())
+	fmt.Println("saveNodeTx", saveNodeTx.Hash().Hex())
 
 	return nil
 }
 
 // HeaderByNumber get eth block by block number
-func (c *EthRpcReverseHashCli) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	_ctx, cancel := context.WithTimeout(ctx, c.Config.RPCResponseTimeout)
+func (cli *EthRpcReverseHashCli) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	_ctx, cancel := context.WithTimeout(ctx, cli.Config.RPCResponseTimeout)
 	defer cancel()
-	header, err := c.Client.HeaderByNumber(_ctx, number)
+	header, err := cli.Client.HeaderByNumber(_ctx, number)
 	if err != nil {
 		return nil, err
 	}

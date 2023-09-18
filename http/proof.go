@@ -25,13 +25,6 @@ func init() {
 
 var hashOne merkletree.Hash
 
-const (
-	NodeTypeUnknown common.NodeType = iota
-	NodeTypeMiddle  common.NodeType = iota
-	NodeTypeLeaf    common.NodeType = iota
-	NodeTypeState   common.NodeType = iota
-)
-
 var ErrNodeNotFound = errors.New("node not found")
 
 type HTTPReverseHashCli struct {
@@ -49,51 +42,7 @@ func (cli *HTTPReverseHashCli) GenerateProof(ctx context.Context,
 		return nil, errors.New("HTTP reverse hash service url is not specified")
 	}
 
-	var exists bool
-	var siblings []*merkletree.Hash
-	var nodeAux *merkletree.NodeAux
-
-	mkProof := func() (*merkletree.Proof, error) {
-		return merkletree.NewProofFromData(exists, siblings, nodeAux)
-	}
-
-	nextKey := treeRoot
-	for depth := uint(0); depth < uint(len(key)*8); depth++ {
-		if *nextKey == merkletree.HashZero {
-			return mkProof()
-		}
-		n, err := cli.GetNode(ctx, nextKey)
-		if err != nil {
-			return nil, err
-		}
-		switch nt := nodeType(n); nt {
-		case NodeTypeLeaf:
-			if bytes.Equal(key[:], n.Children[0][:]) {
-				exists = true
-				return mkProof()
-			}
-			// We found a leaf whose entry didn't match hIndex
-			nodeAux = &merkletree.NodeAux{
-				Key:   n.Children[0],
-				Value: n.Children[1],
-			}
-			return mkProof()
-		case NodeTypeMiddle:
-			if merkletree.TestBit(key[:], depth) {
-				nextKey = n.Children[1]
-				siblings = append(siblings, n.Children[0])
-			} else {
-				nextKey = n.Children[0]
-				siblings = append(siblings, n.Children[1])
-			}
-		default:
-			return nil, fmt.Errorf(
-				"found unexpected node type in tree (%v): %v",
-				nt, n.Hash.Hex())
-		}
-	}
-
-	return nil, errors.New("tree depth is too high")
+	return common.GenerateProof(ctx, cli, treeRoot, key)
 }
 
 func (cli *HTTPReverseHashCli) nodeURL(node *merkletree.Hash) string {
@@ -211,22 +160,6 @@ func (cli *HTTPReverseHashCli) SaveNodes(ctx context.Context,
 	}
 
 	return nil
-}
-
-func nodeType(node common.Node) common.NodeType {
-	if len(node.Children) == 2 {
-		return NodeTypeMiddle
-	}
-
-	if len(node.Children) == 3 && *node.Children[2] == hashOne {
-		return NodeTypeLeaf
-	}
-
-	if len(node.Children) == 3 {
-		return NodeTypeState
-	}
-
-	return NodeTypeUnknown
 }
 
 type nodeResponse struct {
