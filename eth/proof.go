@@ -24,17 +24,9 @@ type EthRpcReverseHashCli struct {
 }
 
 func NewEthRpcReverseHashCli(
-	contractAddress string, rpcUrl string, signer CliSigner, config *ClientConfig,
+	contractAddress ethcommon.Address, ethClient *ethclient.Client, signer CliSigner, config *ClientConfig,
 ) (*EthRpcReverseHashCli, error) {
-
-	ethClient, err := ethclient.Dial(rpcUrl)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Ethereum node: %s", err)
-	}
-
-	addr := ethcommon.HexToAddress(contractAddress)
-
-	contract, err := contracts.NewIdentityTreeStore(addr, ethClient)
+	contract, err := contracts.NewIdentityTreeStore(contractAddress, ethClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate a smart contract: %s", err)
 	}

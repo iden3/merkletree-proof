@@ -8,6 +8,7 @@ import (
 	//"os"
 	"testing"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
@@ -30,12 +31,14 @@ func TestProof_Http(t *testing.T) {
 func TestProof_Eth(t *testing.T) {
 	signer := NewTestSigner()
 
-	a, ok := os.LookupEnv("IDENTITY_TREE_STORE_ADDRESS")
+	addrStr, ok := os.LookupEnv("IDENTITY_TREE_STORE_ADDRESS")
 	if !ok {
 		panic("IDENTITY_TREE_STORE_ADDRESS not set")
 	}
 
-	cli, err := NewTestEthRpcReserveHashCli(a, signer)
+	addr := ethcommon.HexToAddress(addrStr)
+
+	cli, err := NewTestEthRpcReserveHashCli(addr, signer)
 	if err != nil {
 		panic(err)
 	}

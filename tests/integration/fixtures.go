@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/iden3/merkletree-proof/eth"
 )
 
@@ -16,19 +18,17 @@ func NewTestSigner() *eth.Signer {
 	}
 }
 
-func NewTestEthRpcReserveHashCli(contractAddress string, signer eth.CliSigner) (*eth.EthRpcReverseHashCli, error) {
+func NewTestEthRpcReserveHashCli(contractAddress common.Address, signer eth.CliSigner) (*eth.EthRpcReverseHashCli, error) {
 	config := &eth.ClientConfig{
-		ReceiptTimeout:         5 * time.Second,
-		ConfirmationTimeout:    10 * time.Second,
-		ConfirmationBlockCount: 6,
-		DefaultGasLimit:        21000,
-		MinGasPrice:            big.NewInt(1000000000),
-		MaxGasPrice:            big.NewInt(2000000000),
-		RPCResponseTimeout:     5 * time.Second,
-		WaitReceiptCycleTime:   1 * time.Second,
-		WaitBlockCycleTime:     1 * time.Second,
+		MinGasPrice:        big.NewInt(1000000000),
+		MaxGasPrice:        big.NewInt(2000000000),
+		RPCResponseTimeout: 5 * time.Second,
 	}
-	rpcUrl := "http://127.0.0.1:8545"
 
-	return eth.NewEthRpcReverseHashCli(contractAddress, rpcUrl, signer, config)
+	cl, err := ethclient.Dial("http://127.0.0.1:8545")
+	if err != nil {
+		return nil, err
+	}
+
+	return eth.NewEthRpcReverseHashCli(contractAddress, cl, signer, config)
 }
