@@ -17,14 +17,14 @@ import (
 )
 
 type EthRpcReverseHashCli struct {
-	Config    *ClientConfig
-	Client    *ethclient.Client
-	Contract  *contracts.IdentityTreeStore
-	CliSigner CliSigner // TODO Consider better naming
+	Config   *ClientConfig
+	Client   *ethclient.Client
+	Contract *contracts.IdentityTreeStore
+	txOpts   *bind.TransactOpts
 }
 
 func NewEthRpcReverseHashCli(
-	contractAddress ethcommon.Address, ethClient *ethclient.Client, signer CliSigner, config *ClientConfig,
+	contractAddress ethcommon.Address, ethClient *ethclient.Client, txOpts *bind.TransactOpts,
 ) (*EthRpcReverseHashCli, error) {
 	contract, err := contracts.NewIdentityTreeStore(contractAddress, ethClient)
 	if err != nil {
@@ -32,10 +32,9 @@ func NewEthRpcReverseHashCli(
 	}
 
 	return &EthRpcReverseHashCli{
-		Config:    config,
-		Client:    ethClient,
-		Contract:  contract,
-		CliSigner: signer,
+		Client:   ethClient,
+		Contract: contract,
+		txOpts:   txOpts,
 	}, nil
 }
 
@@ -72,17 +71,12 @@ func (cli *EthRpcReverseHashCli) GetNode(ctx context.Context, hash *merkletree.H
 func (cli *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 	nodes []common.Node) error {
 
-	addr, err := cli.CliSigner.Address()
-	if err != nil {
-		return err
-	}
-
-	// TODO consider if evaluate gas price and hardcap limit is needed
+	// TODO check if everything is here
 	txOpts := &bind.TransactOpts{
-		From:      addr,
-		Signer:    cli.CliSigner.SignerFn,
-		GasFeeCap: cli.Config.MaxGasPrice,
-		GasTipCap: cli.Config.MinGasPrice,
+		From:      cli.txOpts.From,
+		Signer:    cli.txOpts.Signer,
+		GasFeeCap: cli.txOpts.GasFeeCap,
+		GasTipCap: cli.txOpts.GasTipCap,
 		Context:   ctx,
 		NoSend:    false,
 	}
@@ -95,12 +89,10 @@ func (cli *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 		}
 	}
 
-	saveNodeTx, err := cli.Contract.SaveNodes(txOpts, nodesBigInt)
+	_, err := cli.Contract.SaveNodes(txOpts, nodesBigInt)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("saveNodeTx", saveNodeTx.Hash().Hex())
 
 	return nil
 }
