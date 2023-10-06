@@ -6,35 +6,39 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/iden3/contracts-abi/rhs-storage/go/abi"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/merkletree-proof/common"
-	"github.com/iden3/merkletree-proof/eth/contracts"
 )
 
 type EthRpcReverseHashCli struct {
-	Config   *ClientConfig
-	Client   *ethclient.Client
-	Contract *contracts.IdentityTreeStore
-	txOpts   *bind.TransactOpts
+	Client             *ethclient.Client
+	Contract           *abi.IRHSStorage
+	txOpts             *bind.TransactOpts
+	RPCResponseTimeout time.Duration
 }
 
 func NewEthRpcReverseHashCli(
-	contractAddress ethcommon.Address, ethClient *ethclient.Client, txOpts *bind.TransactOpts,
+	contractAddress ethcommon.Address,
+	ethClient *ethclient.Client,
+	txOpts *bind.TransactOpts,
+	timeout time.Duration,
 ) (*EthRpcReverseHashCli, error) {
-	contract, err := contracts.NewIdentityTreeStore(contractAddress, ethClient)
+	contract, err := abi.NewIRHSStorage(contractAddress, ethClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate a smart contract: %s", err)
 	}
 
 	return &EthRpcReverseHashCli{
-		Client:   ethClient,
-		Contract: contract,
-		txOpts:   txOpts,
+		Client:             ethClient,
+		Contract:           contract,
+		txOpts:             txOpts,
+		RPCResponseTimeout: timeout,
 	}, nil
 }
 
@@ -71,7 +75,7 @@ func (cli *EthRpcReverseHashCli) GetNode(ctx context.Context, hash *merkletree.H
 func (cli *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 	nodes []common.Node) error {
 
-	ctxWT, cancel := context.WithTimeout(ctx, cli.Config.RPCResponseTimeout)
+	ctxWT, cancel := context.WithTimeout(ctx, cli.RPCResponseTimeout)
 	defer cancel()
 	// TODO check if everything is here
 	txOpts := &bind.TransactOpts{
@@ -97,15 +101,4 @@ func (cli *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 	}
 
 	return nil
-}
-
-// HeaderByNumber get eth block by block number
-func (cli *EthRpcReverseHashCli) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	_ctx, cancel := context.WithTimeout(ctx, cli.Config.RPCResponseTimeout)
-	defer cancel()
-	header, err := cli.Client.HeaderByNumber(_ctx, number)
-	if err != nil {
-		return nil, err
-	}
-	return header, nil
 }

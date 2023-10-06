@@ -35,6 +35,7 @@ require (
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/holiman/uint256 v1.2.3 // indirect
+	github.com/iden3/contracts-abi/rhs-storage/go/abi v0.0.0-20231006141557-7d13ef7e3c48 // indirect
 	github.com/iden3/go-iden3-crypto v0.0.15 // indirect
 	github.com/klauspost/compress v1.15.15 // indirect
 	github.com/kr/pretty v0.3.1 // indirect

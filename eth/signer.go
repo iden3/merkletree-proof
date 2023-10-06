@@ -3,18 +3,11 @@ package eth
 import (
 	"crypto/ecdsa"
 	"math/big"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
-
-type ClientConfig struct {
-	MinGasPrice        *big.Int      `json:"min_gas_price"`
-	MaxGasPrice        *big.Int      `json:"max_gas_price"`
-	RPCResponseTimeout time.Duration `json:"rpc_response_time_out"`
-}
 
 type CliSigner interface {
 	Address() (common.Address, error)

@@ -166,6 +166,10 @@ github.com/holiman/uint256 v1.2.3/go.mod h1:SC8Ryt4n+UBbPbIBKaG9zbbDlp4jOru9xFZm
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/huin/goupnp v1.0.3 h1:N8No57ls+MnjlB+JPiCVSOyy/ot7MJTqlo7rn+NYSqQ=
 github.com/hydrogen18/memlistener v0.0.0-20200120041712-dcc25e7acd91/go.mod h1:qEIFzExnS6016fRpRfxrExeVn2gbClQA99gQhnIcdhE=
+github.com/iden3/contracts-abi/rhs-storage/go/abi v0.0.0-20231006140640-ebdc5164a3aa h1:Bcdh/J7P2vS03yoPjRjZid3WlBPbPYBfwUW0Q40PqlU=
+github.com/iden3/contracts-abi/rhs-storage/go/abi v0.0.0-20231006140640-ebdc5164a3aa/go.mod h1:kJmVPMk4HfWyl2kcta34aad/K4TAfCwB29xX9PsR7LQ=
+github.com/iden3/contracts-abi/rhs-storage/go/abi v0.0.0-20231006141557-7d13ef7e3c48 h1:/g4rru+OM5WAhVNXEpowKH+vWZLGjgpk5+O8Stu4QBo=
+github.com/iden3/contracts-abi/rhs-storage/go/abi v0.0.0-20231006141557-7d13ef7e3c48/go.mod h1:kJmVPMk4HfWyl2kcta34aad/K4TAfCwB29xX9PsR7LQ=
 github.com/iden3/go-iden3-crypto v0.0.15 h1:4MJYlrot1l31Fzlo2sF56u7EVFeHHJkxGXXZCtESgK4=
 github.com/iden3/go-iden3-crypto v0.0.15/go.mod h1:dLpM4vEPJ3nDHzhWFXDjzkn1qHoBeOT/3UEhXsEsP3E=
 github.com/iden3/go-merkletree-sql/v2 v2.0.4 h1:Dp089P3YNX1BE8+T1tKQHWTtnk84Y/Kr7ZAGTqwscoY=
