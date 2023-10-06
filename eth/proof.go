@@ -71,13 +71,15 @@ func (cli *EthRpcReverseHashCli) GetNode(ctx context.Context, hash *merkletree.H
 func (cli *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 	nodes []common.Node) error {
 
+	ctxWT, cancel := context.WithTimeout(ctx, cli.Config.RPCResponseTimeout)
+	defer cancel()
 	// TODO check if everything is here
 	txOpts := &bind.TransactOpts{
 		From:      cli.txOpts.From,
 		Signer:    cli.txOpts.Signer,
 		GasFeeCap: cli.txOpts.GasFeeCap,
 		GasTipCap: cli.txOpts.GasTipCap,
-		Context:   ctx,
+		Context:   ctxWT,
 		NoSend:    false,
 	}
 
