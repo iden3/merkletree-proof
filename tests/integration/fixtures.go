@@ -15,9 +15,11 @@ import (
 
 func NewTestSigner() *Signer {
 	pk, _ := hex.DecodeString("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+	chainID := int64(31337)
+
 	return &Signer{
 		PrivateKey: pk,
-		ChainId:    big.NewInt(31337),
+		ChainId:    big.NewInt(chainID),
 	}
 }
 

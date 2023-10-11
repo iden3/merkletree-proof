@@ -18,7 +18,6 @@ import (
 )
 
 func TestProof_Http(t *testing.T) {
-	t.Skip("skipping http test")
 	rhsUrl, ok := os.LookupEnv("RHS_URL")
 	if !ok || rhsUrl == "" {
 		t.Fatal("RHS_URL not set")
