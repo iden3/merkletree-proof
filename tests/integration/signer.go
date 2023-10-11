@@ -1,4 +1,4 @@
-package eth
+package integration
 
 import (
 	"crypto/ecdsa"
@@ -8,11 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
-
-type CliSigner interface {
-	Address() (common.Address, error)
-	SignerFn(common.Address, *types.Transaction) (*types.Transaction, error)
-}
 
 type Signer struct {
 	PrivateKey []byte

@@ -29,8 +29,6 @@ func TestProof_Http(t *testing.T) {
 }
 
 func TestProof_Eth(t *testing.T) {
-	signer := NewTestSigner()
-
 	addrStr, ok := os.LookupEnv("IDENTITY_TREE_STORE_ADDRESS")
 	if !ok {
 		panic("IDENTITY_TREE_STORE_ADDRESS not set")
@@ -38,7 +36,7 @@ func TestProof_Eth(t *testing.T) {
 
 	addr := ethcommon.HexToAddress(addrStr)
 
-	cli, err := NewTestEthRpcReserveHashCli(addr, signer)
+	cli, err := NewTestEthRpcReserveHashCli(addr)
 	if err != nil {
 		panic(err)
 	}
