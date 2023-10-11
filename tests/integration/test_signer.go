@@ -9,12 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type Signer struct {
+type TestSigner struct {
 	PrivateKey []byte
 	ChainId    *big.Int
 }
 
-func (s *Signer) SignerFn(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+func (s *TestSigner) SignerFn(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 	signer := types.LatestSignerForChainID(s.ChainId)
 	h := signer.Hash(tx)
 	sig, err := s.sign(h[:])
@@ -24,7 +24,7 @@ func (s *Signer) SignerFn(address common.Address, tx *types.Transaction) (*types
 	return tx.WithSignature(signer, sig)
 }
 
-func (s *Signer) Address() (common.Address, error) {
+func (s *TestSigner) Address() (common.Address, error) {
 	pubKey, err := s.getPublicKey()
 	if err != nil {
 		return common.Address{}, err
@@ -32,7 +32,7 @@ func (s *Signer) Address() (common.Address, error) {
 	return crypto.PubkeyToAddress(pubKey), nil
 }
 
-func (s *Signer) sign(data []byte) ([]byte, error) {
+func (s *TestSigner) sign(data []byte) ([]byte, error) {
 	privKey, err := s.getPrivateKey()
 	if err != nil {
 		return nil, err
@@ -41,11 +41,11 @@ func (s *Signer) sign(data []byte) ([]byte, error) {
 	return sig, err
 }
 
-func (s *Signer) getPrivateKey() (*ecdsa.PrivateKey, error) {
+func (s *TestSigner) getPrivateKey() (*ecdsa.PrivateKey, error) {
 	return crypto.ToECDSA(s.PrivateKey)
 }
 
-func (s *Signer) getPublicKey() (ecdsa.PublicKey, error) {
+func (s *TestSigner) getPublicKey() (ecdsa.PublicKey, error) {
 	privKey, err := s.getPrivateKey()
 	if err != nil {
 		return ecdsa.PublicKey{}, err
