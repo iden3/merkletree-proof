@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/iden3/go-merkletree-sql/v2"
-	"github.com/iden3/merkletree-proof/common"
+	"github.com/iden3/merkletree-proof"
 )
 
 func init() {
@@ -27,14 +27,14 @@ var hashOne merkletree.Hash
 
 var ErrNodeNotFound = errors.New("node not found")
 
-type HTTPReverseHashCli struct {
+type ReverseHashCli struct {
 	URL         string
 	HTTPTimeout time.Duration
 }
 
 // GenerateProof generates proof of existence or in-existence of a key in
 // a tree identified by a treeRoot.
-func (cli *HTTPReverseHashCli) GenerateProof(ctx context.Context,
+func (cli *ReverseHashCli) GenerateProof(ctx context.Context,
 	treeRoot *merkletree.Hash,
 	key *merkletree.Hash) (*merkletree.Proof, error) {
 
@@ -42,10 +42,10 @@ func (cli *HTTPReverseHashCli) GenerateProof(ctx context.Context,
 		return nil, errors.New("HTTP reverse hash service url is not specified")
 	}
 
-	return common.GenerateProof(ctx, cli, treeRoot, key)
+	return merkletree_proof.GenerateProof(ctx, cli, treeRoot, key)
 }
 
-func (cli *HTTPReverseHashCli) nodeURL(node *merkletree.Hash) string {
+func (cli *ReverseHashCli) nodeURL(node *merkletree.Hash) string {
 	nodeURL := cli.baseURL() + "/node"
 	if node == nil {
 		return nodeURL
@@ -53,22 +53,22 @@ func (cli *HTTPReverseHashCli) nodeURL(node *merkletree.Hash) string {
 	return nodeURL + "/" + node.Hex()
 }
 
-func (cli *HTTPReverseHashCli) baseURL() string {
+func (cli *ReverseHashCli) baseURL() string {
 	return strings.TrimSuffix(cli.URL, "/")
 }
 
-func (cli *HTTPReverseHashCli) getHttpTimeout() time.Duration {
+func (cli *ReverseHashCli) getHttpTimeout() time.Duration {
 	if cli.HTTPTimeout == 0 {
 		return 10 * time.Second
 	}
 	return cli.HTTPTimeout
 }
 
-func (cli *HTTPReverseHashCli) GetNode(ctx context.Context,
-	hash *merkletree.Hash) (common.Node, error) {
+func (cli *ReverseHashCli) GetNode(ctx context.Context,
+	hash *merkletree.Hash) (merkletree_proof.Node, error) {
 
 	if hash == nil {
-		return common.Node{}, errors.New("hash is nil")
+		return merkletree_proof.Node{}, errors.New("hash is nil")
 	}
 
 	if _, ok := ctx.Deadline(); !ok {
@@ -80,12 +80,12 @@ func (cli *HTTPReverseHashCli) GetNode(ctx context.Context,
 	httpReq, err := http.NewRequestWithContext(
 		ctx, http.MethodGet, cli.nodeURL(hash), http.NoBody)
 	if err != nil {
-		return common.Node{}, err
+		return merkletree_proof.Node{}, err
 	}
 
 	httpResp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		return common.Node{}, err
+		return merkletree_proof.Node{}, err
 	}
 	defer func() { _ = httpResp.Body.Close() }()
 
@@ -94,30 +94,31 @@ func (cli *HTTPReverseHashCli) GetNode(ctx context.Context,
 		dec := json.NewDecoder(httpResp.Body)
 		err := dec.Decode(&resp)
 		if err != nil {
-			return common.Node{}, err
+			return merkletree_proof.Node{}, err
 		}
 		if resp["status"] == "not found" {
-			return common.Node{}, ErrNodeNotFound
+			return merkletree_proof.Node{}, ErrNodeNotFound
 		} else {
-			return common.Node{}, errors.New("unexpected response")
+			return merkletree_proof.Node{},
+				errors.New("unexpected response")
 		}
 	} else if httpResp.StatusCode != http.StatusOK {
-		return common.Node{}, fmt.Errorf("unexpected response: %v",
-			httpResp.StatusCode)
+		return merkletree_proof.Node{}, fmt.Errorf(
+			"unexpected response: %v", httpResp.StatusCode)
 	}
 
 	var nodeResp nodeResponse
 	dec := json.NewDecoder(httpResp.Body)
 	err = dec.Decode(&nodeResp)
 	if err != nil {
-		return common.Node{}, err
+		return merkletree_proof.Node{}, err
 	}
 
 	return nodeResp.Node, nil
 }
 
-func (cli *HTTPReverseHashCli) SaveNodes(ctx context.Context,
-	nodes []common.Node) error {
+func (cli *ReverseHashCli) SaveNodes(ctx context.Context,
+	nodes []merkletree_proof.Node) error {
 
 	reqBytes, err := json.Marshal(nodes)
 	if err != nil {
@@ -163,6 +164,6 @@ func (cli *HTTPReverseHashCli) SaveNodes(ctx context.Context,
 }
 
 type nodeResponse struct {
-	Node   common.Node `json:"node"`
-	Status string      `json:"status"`
+	Node   merkletree_proof.Node `json:"node"`
+	Status string                `json:"status"`
 }

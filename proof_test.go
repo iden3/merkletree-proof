@@ -1,4 +1,4 @@
-package common
+package merkletree_proof
 
 import (
 	"encoding/json"

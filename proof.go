@@ -1,4 +1,4 @@
-package common
+package merkletree_proof
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"github.com/iden3/go-merkletree-sql/v2"
 )
 
+var ErrNodeNotFound = errors.New("node not found")
+
 type ReverseHashCli interface {
 	GenerateProof(ctx context.Context,
 		treeRoot *merkletree.Hash,
@@ -21,9 +23,36 @@ type ReverseHashCli interface {
 		nodes []Node) error
 }
 
+type NodeType byte
+
+const (
+	NodeTypeUnknown NodeType = iota
+	NodeTypeMiddle  NodeType = iota
+	NodeTypeLeaf    NodeType = iota
+	NodeTypeState   NodeType = iota
+)
+
+var hashOne, _ = merkletree.NewHashFromBigInt(big.NewInt(1))
+
 type Node struct {
 	Hash     *merkletree.Hash
 	Children []*merkletree.Hash
+}
+
+func (n Node) Type() NodeType {
+	if len(n.Children) == 2 {
+		return NodeTypeMiddle
+	}
+
+	if len(n.Children) == 3 && *n.Children[2] == *hashOne {
+		return NodeTypeLeaf
+	}
+
+	if len(n.Children) == 3 {
+		return NodeTypeState
+	}
+
+	return NodeTypeUnknown
 }
 
 type jsonNode struct {
@@ -52,35 +81,11 @@ func (n Node) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type NodeType byte
-
-func hashesToHexes(hashes []*merkletree.Hash) []string {
-	if hashes == nil {
-		return nil
-	}
-	hexes := make([]string, len(hashes))
-	for i, h := range hashes {
-		hexes[i] = h.Hex()
-	}
-	return hexes
+type NodeReader interface {
+	GetNode(context.Context, *merkletree.Hash) (Node, error)
 }
 
-func hexesToHashes(hexes []string) ([]*merkletree.Hash, error) {
-	if hexes == nil {
-		return nil, nil
-	}
-	hashes := make([]*merkletree.Hash, len(hexes))
-	var err error
-	for i, h := range hexes {
-		hashes[i], err = merkletree.NewHashFromHex(h)
-		if err != nil {
-			return nil, fmt.Errorf("can't parse hex #%v: %w", i, err)
-		}
-	}
-	return hashes, nil
-}
-
-func GenerateProof(ctx context.Context, cli ReverseHashCli,
+func GenerateProof(ctx context.Context, cli NodeReader,
 	treeRoot *merkletree.Hash,
 	key *merkletree.Hash) (*merkletree.Proof, error) {
 
@@ -101,7 +106,7 @@ func GenerateProof(ctx context.Context, cli ReverseHashCli,
 		if err != nil {
 			return nil, err
 		}
-		switch nt := GetNodeType(n); nt {
+		switch nt := n.Type(); nt {
 		case NodeTypeLeaf:
 			if bytes.Equal(key[:], n.Children[0][:]) {
 				exists = true
@@ -131,27 +136,28 @@ func GenerateProof(ctx context.Context, cli ReverseHashCli,
 	return nil, errors.New("tree depth is too high")
 }
 
-var hashOne, _ = merkletree.NewHashFromBigInt(big.NewInt(1))
-
-func GetNodeType(node Node) NodeType {
-	if len(node.Children) == 2 {
-		return NodeTypeMiddle
+func hashesToHexes(hashes []*merkletree.Hash) []string {
+	if hashes == nil {
+		return nil
 	}
-
-	if len(node.Children) == 3 && *node.Children[2] == *hashOne {
-		return NodeTypeLeaf
+	hexes := make([]string, len(hashes))
+	for i, h := range hashes {
+		hexes[i] = h.Hex()
 	}
-
-	if len(node.Children) == 3 {
-		return NodeTypeState
-	}
-
-	return NodeTypeUnknown
+	return hexes
 }
 
-const (
-	NodeTypeUnknown NodeType = iota
-	NodeTypeMiddle  NodeType = iota
-	NodeTypeLeaf    NodeType = iota
-	NodeTypeState   NodeType = iota
-)
+func hexesToHashes(hexes []string) ([]*merkletree.Hash, error) {
+	if hexes == nil {
+		return nil, nil
+	}
+	hashes := make([]*merkletree.Hash, len(hexes))
+	var err error
+	for i, h := range hexes {
+		hashes[i], err = merkletree.NewHashFromHex(h)
+		if err != nil {
+			return nil, fmt.Errorf("can't parse hex #%v: %w", i, err)
+		}
+	}
+	return hashes, nil
+}
