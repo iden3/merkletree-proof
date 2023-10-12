@@ -22,7 +22,7 @@ type ReverseHashCli struct {
 	rpcTimeout time.Duration
 }
 
-func NewEthRpcReverseHashCli(contractAddress ethcommon.Address,
+func NewReverseHashCli(contractAddress ethcommon.Address,
 	ethClient *ethclient.Client, txOpts *bind.TransactOpts,
 	defaultRPCTimeout time.Duration) (*ReverseHashCli, error) {
 

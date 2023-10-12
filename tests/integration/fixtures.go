@@ -43,7 +43,7 @@ func NewTestEthRpcReserveHashCli(contractAddress common.Address) (*eth.ReverseHa
 		NoSend:    false,
 	}
 
-	return eth.NewEthRpcReverseHashCli(contractAddress, ethCl, txOpts, timeout)
+	return eth.NewReverseHashCli(contractAddress, ethCl, txOpts, timeout)
 }
 
 func newTestSigner() *TestSigner {
