@@ -13,7 +13,7 @@ import (
 	"github.com/iden3/merkletree-proof/eth"
 )
 
-func NewTestEthRpcReserveHashCli(contractAddress common.Address) (*eth.EthRpcReverseHashCli, error) {
+func NewTestEthRpcReserveHashCli(contractAddress common.Address) (*eth.ReverseHashCli, error) {
 	ethCl, err := ethclient.Dial("http://127.0.0.1:8545")
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func NewTestEthRpcReserveHashCli(contractAddress common.Address) (*eth.EthRpcRev
 		NoSend:    false,
 	}
 
-	return eth.NewEthRpcReverseHashCli(contractAddress, ethCl, txOpts, timeout)
+	return eth.NewReverseHashCli(contractAddress, ethCl, txOpts, timeout)
 }
 
 func newTestSigner() *TestSigner {

@@ -13,77 +13,103 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/iden3/contracts-abi/rhs-storage/go/abi"
 	"github.com/iden3/go-merkletree-sql/v2"
-	"github.com/iden3/merkletree-proof/common"
+	"github.com/iden3/merkletree-proof"
 )
 
-type EthRpcReverseHashCli struct {
-	Client             *ethclient.Client
-	Contract           *abi.IRHSStorage
-	txOpts             *bind.TransactOpts
-	RPCResponseTimeout time.Duration
+type ReverseHashCli struct {
+	contract   *abi.IRHSStorage
+	txOpts     *bind.TransactOpts
+	rpcTimeout time.Duration
 }
 
-func NewEthRpcReverseHashCli(
-	contractAddress ethcommon.Address,
-	ethClient *ethclient.Client,
-	txOpts *bind.TransactOpts,
-	timeout time.Duration,
-) (*EthRpcReverseHashCli, error) {
+func NewReverseHashCli(contractAddress ethcommon.Address,
+	ethClient *ethclient.Client, txOpts *bind.TransactOpts,
+	defaultRPCTimeout time.Duration) (*ReverseHashCli, error) {
+
+	if ethClient == nil {
+		return nil, errors.New("ethClient is nil")
+	}
+
 	contract, err := abi.NewIRHSStorage(contractAddress, ethClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate a smart contract: %s", err)
 	}
 
-	return &EthRpcReverseHashCli{
-		Client:             ethClient,
-		Contract:           contract,
-		txOpts:             txOpts,
-		RPCResponseTimeout: timeout,
+	return &ReverseHashCli{
+		contract:   contract,
+		txOpts:     txOpts,
+		rpcTimeout: defaultRPCTimeout,
 	}, nil
 }
 
-func (cli *EthRpcReverseHashCli) GenerateProof(ctx context.Context,
+func (cli *ReverseHashCli) ctx(
+	ctx context.Context) (context.Context, context.CancelFunc) {
+
+	if ctx == nil {
+		ctx = cli.txOpts.Context
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if cli.rpcTimeout > 0 {
+		return context.WithTimeout(ctx, cli.rpcTimeout)
+	}
+
+	return ctx, func() {}
+}
+
+func (cli *ReverseHashCli) GenerateProof(ctx context.Context,
 	treeRoot *merkletree.Hash,
 	key *merkletree.Hash) (*merkletree.Proof, error) {
 
-	return common.GenerateProof(ctx, cli, treeRoot, key)
+	return merkletree_proof.GenerateProof(ctx, cli, treeRoot, key)
 }
 
-func (cli *EthRpcReverseHashCli) GetNode(ctx context.Context, hash *merkletree.Hash) (common.Node, error) {
+func (cli *ReverseHashCli) GetNode(ctx context.Context,
+	hash *merkletree.Hash) (merkletree_proof.Node, error) {
+
 	id := hash.BigInt()
 
-	children, err := cli.Contract.GetNode(nil, id)
+	ctx, cancel := cli.ctx(ctx)
+	defer cancel()
+
+	opts := &bind.CallOpts{Context: ctx}
+	children, err := cli.contract.GetNode(opts, id)
 	if err != nil {
 		if strings.Contains(err.Error(), "Node not found") {
-			return common.Node{}, errors.New("node not found")
+			return merkletree_proof.Node{}, merkletree_proof.ErrNodeNotFound
 		}
-		return common.Node{}, err
+		return merkletree_proof.Node{}, err
 	}
 
-	childrenHashes := make([]*merkletree.Hash, len(children))
-	for i, child := range children {
-		b, _ := merkletree.NewHashFromBigInt(child)
-		childrenHashes[i] = b
-	}
-
-	return common.Node{
+	n := merkletree_proof.Node{
 		Hash:     hash,
-		Children: childrenHashes,
-	}, nil
+		Children: make([]*merkletree.Hash, len(children)),
+	}
+	for i, child := range children {
+		n.Children[i], err = merkletree.NewHashFromBigInt(child)
+		if err != nil {
+			return merkletree_proof.Node{}, err
+		}
+	}
+
+	return n, nil
 }
 
-func (cli *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
-	nodes []common.Node) error {
+func (cli *ReverseHashCli) SaveNodes(ctx context.Context,
+	nodes []merkletree_proof.Node) error {
 
-	ctxWT, cancel := context.WithTimeout(ctx, cli.RPCResponseTimeout)
+	ctx, cancel := cli.ctx(ctx)
 	defer cancel()
-	// TODO check if everything is here
+
 	txOpts := &bind.TransactOpts{
 		From:      cli.txOpts.From,
 		Signer:    cli.txOpts.Signer,
 		GasFeeCap: cli.txOpts.GasFeeCap,
 		GasTipCap: cli.txOpts.GasTipCap,
-		Context:   ctxWT,
+		Context:   ctx,
 		NoSend:    false,
 	}
 
@@ -95,7 +121,7 @@ func (cli *EthRpcReverseHashCli) SaveNodes(ctx context.Context,
 		}
 	}
 
-	_, err := cli.Contract.SaveNodes(txOpts, nodesBigInt)
+	_, err := cli.contract.SaveNodes(txOpts, nodesBigInt)
 	if err != nil {
 		return err
 	}
