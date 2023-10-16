@@ -9,7 +9,8 @@ import (
 
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
-	proof "github.com/iden3/merkletree-proof"
+	mtp "github.com/iden3/merkletree-proof"
+	mtpHttp "github.com/iden3/merkletree-proof/http"
 )
 
 var hashOne *merkletree.Hash
@@ -24,7 +25,7 @@ func init() {
 
 func main() {
 	rhsURL := "http://localhost:8003"
-	cli := &proof.HTTPReverseHashCli{URL: rhsURL}
+	cli := &mtpHttp.ReverseHashCli{URL: rhsURL}
 
 	// generate tree with 10 random leaves.
 	tree := buildMT(10)
@@ -55,7 +56,7 @@ func main() {
 	fmt.Println("OK: trees are equal")
 }
 
-func restoreTree(cli *proof.HTTPReverseHashCli,
+func restoreTree(cli *mtpHttp.ReverseHashCli,
 	root *merkletree.Hash) *merkletree.MerkleTree {
 	mt := newEmptyTree()
 	walkRHSLeafs(cli, root, func(key, value *merkletree.Hash) {
@@ -67,7 +68,7 @@ func restoreTree(cli *proof.HTTPReverseHashCli,
 	return mt
 }
 
-func walkRHSLeafs(cli *proof.HTTPReverseHashCli, root *merkletree.Hash,
+func walkRHSLeafs(cli *mtpHttp.ReverseHashCli, root *merkletree.Hash,
 	fn func(key, value *merkletree.Hash)) {
 
 	node, err := cli.GetNode(context.Background(), root)
@@ -89,10 +90,10 @@ func walkRHSLeafs(cli *proof.HTTPReverseHashCli, root *merkletree.Hash,
 	}
 }
 
-func nodesFromTree(tree *merkletree.MerkleTree) []proof.Node {
+func nodesFromTree(tree *merkletree.MerkleTree) []mtp.Node {
 	ctx := context.Background()
 
-	var nodes []proof.Node
+	var nodes []mtp.Node
 	err := tree.Walk(ctx, nil, func(node *merkletree.Node) {
 		nodeKey, err := node.Key()
 		if err != nil {
@@ -100,11 +101,11 @@ func nodesFromTree(tree *merkletree.MerkleTree) []proof.Node {
 		}
 		switch node.Type {
 		case merkletree.NodeTypeMiddle:
-			nodes = append(nodes, proof.Node{
+			nodes = append(nodes, mtp.Node{
 				Hash:     nodeKey,
 				Children: []*merkletree.Hash{node.ChildL, node.ChildR}})
 		case merkletree.NodeTypeLeaf:
-			nodes = append(nodes, proof.Node{
+			nodes = append(nodes, mtp.Node{
 				Hash: nodeKey,
 				Children: []*merkletree.Hash{node.Entry[0], node.Entry[1],
 					hashOne},

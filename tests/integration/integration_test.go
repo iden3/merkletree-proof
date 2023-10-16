@@ -5,22 +5,46 @@ import (
 	"errors"
 	"math/big"
 	"os"
+	//"os"
 	"testing"
 
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/iden3/go-iden3-crypto/poseidon"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-merkletree-sql/v2/db/memory"
-	proof "github.com/iden3/merkletree-proof"
+	merkletree_proof "github.com/iden3/merkletree-proof"
+	proof "github.com/iden3/merkletree-proof/http"
 	"github.com/stretchr/testify/require"
 )
 
-func TestProof(t *testing.T) {
+func TestProof_Http(t *testing.T) {
 	rhsUrl, ok := os.LookupEnv("RHS_URL")
 	if !ok || rhsUrl == "" {
 		t.Fatal("RHS_URL not set")
 	}
-	rhsCli := &proof.HTTPReverseHashCli{URL: rhsUrl}
+	rhsCli := &proof.ReverseHashCli{URL: rhsUrl}
 
+	runTestCases(t, rhsCli)
+}
+
+func TestProof_Eth(t *testing.T) {
+	t.Skip("skipping eth test")
+	addrStr, ok := os.LookupEnv("IDENTITY_TREE_STORE_ADDRESS")
+	if !ok {
+		panic("IDENTITY_TREE_STORE_ADDRESS not set")
+	}
+
+	addr := ethcommon.HexToAddress(addrStr)
+
+	cli, err := NewTestEthRpcReserveHashCli(addr)
+	if err != nil {
+		panic(err)
+	}
+
+	runTestCases(t, cli)
+}
+
+func runTestCases(t *testing.T, rhsCli merkletree_proof.ReverseHashCli) {
 	revNonces := []uint64{
 		5577006791947779410,  // 19817761...  0 1 0 0 1 0 1 0
 		8674665223082153551,  // 68456430...  1 1 1 1 0 0 1 0
@@ -180,7 +204,7 @@ func TestProof(t *testing.T) {
 	}
 }
 
-func getRevTreeRoot(rhsCli *proof.HTTPReverseHashCli,
+func getRevTreeRoot(rhsCli merkletree_proof.ReverseHashCli,
 	state *merkletree.Hash) (*merkletree.Hash, error) {
 	stateNode, err := rhsCli.GetNode(context.Background(), state)
 	if err != nil {
@@ -196,7 +220,7 @@ func getRevTreeRoot(rhsCli *proof.HTTPReverseHashCli,
 	return stateNode.Children[1], nil
 }
 
-func saveIdenStateToRHS(t testing.TB, rhsCli *proof.HTTPReverseHashCli,
+func saveIdenStateToRHS(t testing.TB, rhsCli merkletree_proof.ReverseHashCli,
 	merkleTree *merkletree.MerkleTree) *merkletree.Hash {
 
 	revTreeRoot := merkleTree.Root()
@@ -205,7 +229,7 @@ func saveIdenStateToRHS(t testing.TB, rhsCli *proof.HTTPReverseHashCli,
 	require.NoError(t, err)
 
 	stateHash := hashFromInt(state)
-	req := []proof.Node{
+	req := []merkletree_proof.Node{
 		{
 			Hash: stateHash,
 			Children: []*merkletree.Hash{&merkletree.HashZero,
@@ -235,21 +259,21 @@ func buildTree(t testing.TB, revNonces []uint64) *merkletree.MerkleTree {
 	return mt
 }
 
-func saveTreeToRHS(t testing.TB, rhsCli *proof.HTTPReverseHashCli,
+func saveTreeToRHS(t testing.TB, rhsCli merkletree_proof.ReverseHashCli,
 	merkleTree *merkletree.MerkleTree) {
 	ctx := context.Background()
-	var req []proof.Node
+	var req []merkletree_proof.Node
 	hashOne := hashFromInt(big.NewInt(1))
 	err := merkleTree.Walk(ctx, nil, func(node *merkletree.Node) {
 		nodeKey, err := node.Key()
 		require.NoError(t, err)
 		switch node.Type {
 		case merkletree.NodeTypeMiddle:
-			req = append(req, proof.Node{
+			req = append(req, merkletree_proof.Node{
 				Hash:     nodeKey,
 				Children: []*merkletree.Hash{node.ChildL, node.ChildR}})
 		case merkletree.NodeTypeLeaf:
-			req = append(req, proof.Node{
+			req = append(req, merkletree_proof.Node{
 				Hash: nodeKey,
 				Children: []*merkletree.Hash{node.Entry[0], node.Entry[1],
 					hashOne},

@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-20.04
-    container: golang:1.18.2-bullseye
+    container: golang:1.19.13-bullseye
     steps:
       - uses: actions/checkout@v2
       - uses: actions/cache@v2
