@@ -22,14 +22,15 @@ import (
 type ReverseHashCli struct {
 	contract             *abi.IRHSStorage
 	ethClient            *ethclient.Client
-	txOpts               *bind.TransactOpts
+	from                 ethcommon.Address
+	signer               bind.SignerFn
 	rpcTimeout           time.Duration
 	txReceiptTimeout     time.Duration
 	waitReceiptCycleTime time.Duration
 }
 
 func NewReverseHashCli(contractAddress ethcommon.Address,
-	ethClient *ethclient.Client, txOpts *bind.TransactOpts,
+	ethClient *ethclient.Client, from ethcommon.Address, signerFn bind.SignerFn,
 	rpcTimeout time.Duration, txReceiptTimeout time.Duration,
 	waitReceiptCycleTime time.Duration) (*ReverseHashCli, error) {
 
@@ -45,7 +46,8 @@ func NewReverseHashCli(contractAddress ethcommon.Address,
 	return &ReverseHashCli{
 		contract:             contract,
 		ethClient:            ethClient,
-		txOpts:               txOpts,
+		from:                 from,
+		signer:               signerFn,
 		rpcTimeout:           rpcTimeout,
 		txReceiptTimeout:     txReceiptTimeout,
 		waitReceiptCycleTime: waitReceiptCycleTime,
@@ -93,29 +95,20 @@ func (cli *ReverseHashCli) GetNode(ctx context.Context,
 func (cli *ReverseHashCli) SaveNodes(ctx context.Context,
 	nodes []merkletree_proof.Node) error {
 
-	gasTipCap, err := cli.suggestGasTipCap(ctx)
-	if err != nil {
-		return err
-	}
-
-	ctxRPC, cancelRPC := cli.ctxWithRPCTimeout(ctx)
-	defer cancelRPC()
-
-	txOpts := &bind.TransactOpts{
-		From:      cli.txOpts.From,
-		Signer:    cli.txOpts.Signer,
-		GasFeeCap: cli.txOpts.GasFeeCap,
-		GasTipCap: gasTipCap,
-		Context:   ctxRPC,
-		NoSend:    false,
-	}
-
 	nodesBigInt := make([][]*big.Int, len(nodes))
 	for i, node := range nodes {
 		nodesBigInt[i] = make([]*big.Int, len(node.Children))
 		for j, child := range node.Children {
 			nodesBigInt[i][j] = child.BigInt()
 		}
+	}
+
+	ctxRPC, cancelRPC := cli.ctxWithRPCTimeout(ctx)
+	defer cancelRPC()
+
+	txOpts, err := cli.txOptions(ctx, ctxRPC)
+	if err != nil {
+		return err
 	}
 
 	tx, err := cli.contract.SaveNodes(txOpts, nodesBigInt)
@@ -133,22 +126,38 @@ func (cli *ReverseHashCli) SaveNodes(ctx context.Context,
 	return nil
 }
 
-func (cli *ReverseHashCli) ctxWithRPCTimeout(
-	ctx context.Context) (context.Context, context.CancelFunc) {
-	ctx = cli.ctx(ctx)
+func (cli *ReverseHashCli) txOptions(ctx, ctxRPC context.Context) (*bind.TransactOpts, error) {
+	gasTipCap, err := cli.suggestGasTipCap(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	txOpts := &bind.TransactOpts{
+		From:      cli.from,
+		Signer:    cli.signer,
+		GasTipCap: gasTipCap,
+		GasLimit:  0, // go-ethereum library will estimate gas limit automatically if it is 0
+		Context:   ctxRPC,
+		NoSend:    false,
+	}
+	return txOpts, nil
+}
+
+func (cli *ReverseHashCli) ctxWithRPCTimeout(ctx context.Context) (context.Context,
+	context.CancelFunc) {
 
 	if cli.rpcTimeout > 0 {
-		return context.WithTimeout(ctx, cli.rpcTimeout)
+		return context.WithTimeout(cli.ctx(ctx), cli.rpcTimeout)
 	}
 
 	return ctx, func() {}
 }
 
-func (cli *ReverseHashCli) ctxWithTxReceiptTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	ctx = cli.ctx(ctx)
+func (cli *ReverseHashCli) ctxWithTxReceiptTimeout(ctx context.Context) (context.Context,
+	context.CancelFunc) {
 
 	if cli.txReceiptTimeout > 0 {
-		return context.WithTimeout(ctx, cli.txReceiptTimeout)
+		return context.WithTimeout(cli.ctx(ctx), cli.txReceiptTimeout)
 	}
 
 	return ctx, func() {}
@@ -156,17 +165,15 @@ func (cli *ReverseHashCli) ctxWithTxReceiptTimeout(ctx context.Context) (context
 
 func (cli *ReverseHashCli) ctx(ctx context.Context) context.Context {
 	if ctx == nil {
-		ctx = cli.txOpts.Context
-	}
-
-	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	return ctx
 }
 
-func (cli *ReverseHashCli) waitMined(ctx context.Context, cl *ethclient.Client, tx *types.Transaction) (*types.Receipt, error) {
+func (cli *ReverseHashCli) waitMined(ctx context.Context,
+	cl *ethclient.Client, tx *types.Transaction) (*types.Receipt, error) {
+
 	queryTicker := time.NewTicker(cli.waitReceiptCycleTime)
 	defer queryTicker.Stop()
 
