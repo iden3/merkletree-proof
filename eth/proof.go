@@ -25,13 +25,14 @@ type ReverseHashCli struct {
 	from                 ethcommon.Address
 	signer               bind.SignerFn
 	rpcTimeout           time.Duration
+	needWaitReceipt      bool
 	txReceiptTimeout     time.Duration
 	waitReceiptCycleTime time.Duration
 }
 
 func NewReverseHashCli(contractAddress ethcommon.Address,
 	ethClient *ethclient.Client, from ethcommon.Address, signerFn bind.SignerFn,
-	rpcTimeout time.Duration, txReceiptTimeout time.Duration,
+	rpcTimeout time.Duration, needWaitReceipt bool, txReceiptTimeout time.Duration,
 	waitReceiptCycleTime time.Duration) (*ReverseHashCli, error) {
 
 	if ethClient == nil {
@@ -49,6 +50,7 @@ func NewReverseHashCli(contractAddress ethcommon.Address,
 		from:                 from,
 		signer:               signerFn,
 		rpcTimeout:           rpcTimeout,
+		needWaitReceipt:      needWaitReceipt,
 		txReceiptTimeout:     txReceiptTimeout,
 		waitReceiptCycleTime: waitReceiptCycleTime,
 	}, nil
@@ -116,10 +118,7 @@ func (cli *ReverseHashCli) SaveNodes(ctx context.Context,
 		return err
 	}
 
-	ctxRpt, cancelRpt := cli.ctxWithTxReceiptTimeout(ctx)
-	defer cancelRpt()
-
-	_, err = cli.waitMined(ctxRpt, cli.ethClient, tx)
+	_, err = cli.waitReceipt(ctx, cli.ethClient, tx)
 	if err != nil {
 		return err
 	}
@@ -171,8 +170,15 @@ func (cli *ReverseHashCli) ctx(ctx context.Context) context.Context {
 	return ctx
 }
 
-func (cli *ReverseHashCli) waitMined(ctx context.Context,
+func (cli *ReverseHashCli) waitReceipt(ctx context.Context,
 	cl *ethclient.Client, tx *types.Transaction) (*types.Receipt, error) {
+
+	if !cli.needWaitReceipt {
+		return nil, nil
+	}
+
+	ctx, cancel := cli.ctxWithTxReceiptTimeout(ctx)
+	defer cancel()
 
 	queryTicker := time.NewTicker(cli.waitReceiptCycleTime)
 	defer queryTicker.Stop()
