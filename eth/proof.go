@@ -17,14 +17,16 @@ import (
 )
 
 type ReverseHashCli struct {
-	contract   *abi.IRHSStorage
-	txOpts     *bind.TransactOpts
-	rpcTimeout time.Duration
+	contract         *abi.IRHSStorage
+	ethClient        *ethclient.Client
+	txOpts           *bind.TransactOpts
+	rpcTimeout       time.Duration
+	txReceiptTimeout time.Duration
 }
 
 func NewReverseHashCli(contractAddress ethcommon.Address,
 	ethClient *ethclient.Client, txOpts *bind.TransactOpts,
-	defaultRPCTimeout time.Duration) (*ReverseHashCli, error) {
+	rpcTimeout time.Duration, txReceiptTimeout time.Duration) (*ReverseHashCli, error) {
 
 	if ethClient == nil {
 		return nil, errors.New("ethClient is nil")
@@ -36,28 +38,12 @@ func NewReverseHashCli(contractAddress ethcommon.Address,
 	}
 
 	return &ReverseHashCli{
-		contract:   contract,
-		txOpts:     txOpts,
-		rpcTimeout: defaultRPCTimeout,
+		contract:         contract,
+		ethClient:        ethClient,
+		txOpts:           txOpts,
+		rpcTimeout:       rpcTimeout,
+		txReceiptTimeout: txReceiptTimeout,
 	}, nil
-}
-
-func (cli *ReverseHashCli) ctx(
-	ctx context.Context) (context.Context, context.CancelFunc) {
-
-	if ctx == nil {
-		ctx = cli.txOpts.Context
-	}
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if cli.rpcTimeout > 0 {
-		return context.WithTimeout(ctx, cli.rpcTimeout)
-	}
-
-	return ctx, func() {}
 }
 
 func (cli *ReverseHashCli) GenerateProof(ctx context.Context,
@@ -72,7 +58,7 @@ func (cli *ReverseHashCli) GetNode(ctx context.Context,
 
 	id := hash.BigInt()
 
-	ctx, cancel := cli.ctx(ctx)
+	ctx, cancel := cli.ctxWithRPCTimeout(ctx)
 	defer cancel()
 
 	opts := &bind.CallOpts{Context: ctx}
@@ -101,15 +87,15 @@ func (cli *ReverseHashCli) GetNode(ctx context.Context,
 func (cli *ReverseHashCli) SaveNodes(ctx context.Context,
 	nodes []merkletree_proof.Node) error {
 
-	ctx, cancel := cli.ctx(ctx)
-	defer cancel()
+	ctxRPC, cancelRPC := cli.ctxWithRPCTimeout(ctx)
+	defer cancelRPC()
 
 	txOpts := &bind.TransactOpts{
 		From:      cli.txOpts.From,
 		Signer:    cli.txOpts.Signer,
 		GasFeeCap: cli.txOpts.GasFeeCap,
 		GasTipCap: cli.txOpts.GasTipCap,
-		Context:   ctx,
+		Context:   ctxRPC,
 		NoSend:    false,
 	}
 
@@ -121,10 +107,50 @@ func (cli *ReverseHashCli) SaveNodes(ctx context.Context,
 		}
 	}
 
-	_, err := cli.contract.SaveNodes(txOpts, nodesBigInt)
+	tx, err := cli.contract.SaveNodes(txOpts, nodesBigInt)
 	if err != nil {
 		return err
 	}
 
+	ctxRpt, cancelRpt := cli.ctxWithTxReceiptTimeout(ctx)
+	defer cancelRpt()
+
+	_, err = bind.WaitMined(ctxRpt, cli.ethClient, tx)
+	if err != nil {
+		return err
+	}
 	return nil
+}
+
+func (cli *ReverseHashCli) ctxWithRPCTimeout(
+	ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx = cli.ctx(ctx)
+
+	if cli.rpcTimeout > 0 {
+		return context.WithTimeout(ctx, cli.rpcTimeout)
+	}
+
+	return ctx, func() {}
+}
+
+func (cli *ReverseHashCli) ctxWithTxReceiptTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx = cli.ctx(ctx)
+
+	if cli.txReceiptTimeout > 0 {
+		return context.WithTimeout(ctx, cli.txReceiptTimeout)
+	}
+
+	return ctx, func() {}
+}
+
+func (cli *ReverseHashCli) ctx(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = cli.txOpts.Context
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return ctx
 }
