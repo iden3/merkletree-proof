@@ -8,25 +8,30 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/iden3/contracts-abi/rhs-storage/go/abi"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/merkletree-proof"
 )
 
 type ReverseHashCli struct {
-	contract         *abi.IRHSStorage
-	ethClient        *ethclient.Client
-	txOpts           *bind.TransactOpts
-	rpcTimeout       time.Duration
-	txReceiptTimeout time.Duration
+	contract             *abi.IRHSStorage
+	ethClient            *ethclient.Client
+	txOpts               *bind.TransactOpts
+	rpcTimeout           time.Duration
+	txReceiptTimeout     time.Duration
+	waitReceiptCycleTime time.Duration
 }
 
 func NewReverseHashCli(contractAddress ethcommon.Address,
 	ethClient *ethclient.Client, txOpts *bind.TransactOpts,
-	rpcTimeout time.Duration, txReceiptTimeout time.Duration) (*ReverseHashCli, error) {
+	rpcTimeout time.Duration, txReceiptTimeout time.Duration,
+	waitReceiptCycleTime time.Duration) (*ReverseHashCli, error) {
 
 	if ethClient == nil {
 		return nil, errors.New("ethClient is nil")
@@ -38,11 +43,12 @@ func NewReverseHashCli(contractAddress ethcommon.Address,
 	}
 
 	return &ReverseHashCli{
-		contract:         contract,
-		ethClient:        ethClient,
-		txOpts:           txOpts,
-		rpcTimeout:       rpcTimeout,
-		txReceiptTimeout: txReceiptTimeout,
+		contract:             contract,
+		ethClient:            ethClient,
+		txOpts:               txOpts,
+		rpcTimeout:           rpcTimeout,
+		txReceiptTimeout:     txReceiptTimeout,
+		waitReceiptCycleTime: waitReceiptCycleTime,
 	}, nil
 }
 
@@ -115,7 +121,7 @@ func (cli *ReverseHashCli) SaveNodes(ctx context.Context,
 	ctxRpt, cancelRpt := cli.ctxWithTxReceiptTimeout(ctx)
 	defer cancelRpt()
 
-	_, err = bind.WaitMined(ctxRpt, cli.ethClient, tx)
+	_, err = cli.waitMined(ctxRpt, cli.ethClient, tx)
 	if err != nil {
 		return err
 	}
@@ -153,4 +159,30 @@ func (cli *ReverseHashCli) ctx(ctx context.Context) context.Context {
 	}
 
 	return ctx
+}
+
+func (cli *ReverseHashCli) waitMined(ctx context.Context, cl *ethclient.Client, tx *types.Transaction) (*types.Receipt, error) {
+	queryTicker := time.NewTicker(cli.waitReceiptCycleTime)
+	defer queryTicker.Stop()
+
+	logger := log.New("hash", tx.Hash())
+	for {
+		receipt, err := cl.TransactionReceipt(ctx, tx.Hash())
+		if err == nil {
+			return receipt, nil
+		}
+
+		if errors.Is(err, ethereum.NotFound) {
+			logger.Trace("Transaction not yet mined")
+		} else {
+			logger.Trace("Receipt retrieval failed", "err", err)
+		}
+
+		// Wait for the next round.
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-queryTicker.C:
+		}
+	}
 }
