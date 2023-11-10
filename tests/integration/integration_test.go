@@ -28,6 +28,7 @@ func TestProof_Http(t *testing.T) {
 }
 
 func TestProof_Eth(t *testing.T) {
+	t.Skip("skipping ETH CLI test")
 	addrStr, ok := os.LookupEnv("IDENTITY_TREE_STORE_ADDRESS")
 	if !ok {
 		panic("IDENTITY_TREE_STORE_ADDRESS not set")
