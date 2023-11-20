@@ -30,30 +30,76 @@ type ReverseHashCli struct {
 	waitReceiptCycleTime time.Duration
 }
 
-func NewReverseHashCli(contractAddress ethcommon.Address,
-	ethClient *ethclient.Client, from ethcommon.Address, signerFn bind.SignerFn,
-	rpcTimeout time.Duration, needWaitReceipt bool, txReceiptTimeout time.Duration,
-	waitReceiptCycleTime time.Duration) (*ReverseHashCli, error) {
+type Option func(cli *ReverseHashCli) error
 
-	if ethClient == nil {
-		return nil, errors.New("ethClient is nil")
+func WithEthClient(ethClient *ethclient.Client) Option {
+	return func(cli *ReverseHashCli) error {
+		cli.ethClient = ethClient
+		return nil
+	}
+}
+
+func WithRPCTimeout(timeout time.Duration) Option {
+	return func(cli *ReverseHashCli) error {
+		cli.rpcTimeout = timeout
+		return nil
+	}
+}
+
+func WithNeedWaitReceipt(needWaitReceipt bool) Option {
+	return func(cli *ReverseHashCli) error {
+		cli.needWaitReceipt = needWaitReceipt
+		return nil
+	}
+}
+
+func WithTxReceiptTimeout(timeout time.Duration) Option {
+	return func(cli *ReverseHashCli) error {
+		cli.txReceiptTimeout = timeout
+		return nil
+	}
+}
+
+func WithWaitReceiptCycleTime(cycleTime time.Duration) Option {
+	return func(cli *ReverseHashCli) error {
+		cli.waitReceiptCycleTime = cycleTime
+		return nil
+	}
+}
+
+func NewReverseHashCli(contractAddress ethcommon.Address,
+	from ethcommon.Address, signerFn bind.SignerFn,
+	opts ...Option) (*ReverseHashCli, error) {
+
+	ethCl, err := ethclient.Dial("http://127.0.0.1:8545")
+	if err != nil {
+		return nil, err
 	}
 
-	contract, err := abi.NewIRHSStorage(contractAddress, ethClient)
+	rhc := &ReverseHashCli{
+		ethClient:            ethCl,
+		from:                 from,
+		signer:               signerFn,
+		rpcTimeout:           5 * time.Second,
+		needWaitReceipt:      false,
+		txReceiptTimeout:     30 * time.Second,
+		waitReceiptCycleTime: time.Second,
+	}
+
+	for _, o := range opts {
+		err := o(rhc)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	contract, err := abi.NewIRHSStorage(contractAddress, rhc.ethClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate a smart contract: %s", err)
 	}
+	rhc.contract = contract
 
-	return &ReverseHashCli{
-		contract:             contract,
-		ethClient:            ethClient,
-		from:                 from,
-		signer:               signerFn,
-		rpcTimeout:           rpcTimeout,
-		needWaitReceipt:      needWaitReceipt,
-		txReceiptTimeout:     txReceiptTimeout,
-		waitReceiptCycleTime: waitReceiptCycleTime,
-	}, nil
+	return rhc, nil
 }
 
 func (cli *ReverseHashCli) GenerateProof(ctx context.Context,
@@ -194,6 +240,7 @@ func (cli *ReverseHashCli) waitReceipt(ctx context.Context,
 			logger.Trace("Transaction not yet mined")
 		} else {
 			logger.Trace("Receipt retrieval failed", "err", err)
+			return nil, err
 		}
 
 		// Wait for the next round.
