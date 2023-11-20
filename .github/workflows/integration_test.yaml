@@ -11,8 +11,9 @@ jobs:
     runs-on: ubuntu-20.04
     container: golang:1.19.13-bullseye
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cache/go-build
@@ -20,11 +21,49 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
+
+      - name: Pull contracts repository, branch master
+        uses: actions/checkout@v4
+        with:
+          repository: iden3/contracts
+          ref: master
+          path: ./contracts
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Run hardhat
+        working-directory: ./contracts
+        run: |
+          npm ci
+          npx hardhat node > hardhat.log 2>&1 &
+
+      - name: Deploy IRHSStorage to hardhat
+        working-directory: ./contracts
+        env:
+          STATE_CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000000"
+        run: |
+          sleep 5
+          npx hardhat run --network localhost scripts/deployIdentityTreeStore.ts > deploy_contracts.log
+          echo "IRHS_STORAGE_ADDRESS=$(cat deploy_contracts.log | grep -oP "(?<=to: ).*" | tail -1)" >> $GITHUB_ENV
+          echo "IRHSStorage deploy logs:"
+          cat deploy_contracts.log
+
+      - name: Print IRHSStorage contract address in Hardhat network
+        run: echo "`IRHSStorage contract address:` ${{ env.IRHS_STORAGE_ADDRESS }}"
+
       - name: Integration Tests
         run: go test -v -race ./...
         working-directory: tests/integration
         env:
           RHS_URL: http://rhs:8080
+
+      - name: Show Hardhat logs
+        run: cat ./contracts/hardhat.log
+
     services:
       rhs:
         image: ghcr.io/iden3/reverse-hash-service:latest
