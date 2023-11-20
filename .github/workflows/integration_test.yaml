@@ -52,9 +52,6 @@ jobs:
           echo "IRHSStorage deploy logs:"
           cat deploy_contracts.log
 
-      - name: Print IRHSStorage contract address in Hardhat network
-        run: echo "`IRHSStorage contract address:` ${{ env.IRHS_STORAGE_ADDRESS }}"
-
       - name: Integration Tests
         run: go test -v -race ./...
         working-directory: tests/integration
