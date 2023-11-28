@@ -32,13 +32,6 @@ type ReverseHashCli struct {
 
 type Option func(cli *ReverseHashCli) error
 
-func WithEthClient(ethClient *ethclient.Client) Option {
-	return func(cli *ReverseHashCli) error {
-		cli.ethClient = ethClient
-		return nil
-	}
-}
-
 func WithRPCTimeout(timeout time.Duration) Option {
 	return func(cli *ReverseHashCli) error {
 		cli.rpcTimeout = timeout
@@ -67,17 +60,12 @@ func WithWaitReceiptCycleTime(cycleTime time.Duration) Option {
 	}
 }
 
-func NewReverseHashCli(contractAddress ethcommon.Address,
-	from ethcommon.Address, signerFn bind.SignerFn,
+func NewReverseHashCli(ethClient *ethclient.Client,
+	contractAddress ethcommon.Address, from ethcommon.Address, signerFn bind.SignerFn,
 	opts ...Option) (*ReverseHashCli, error) {
 
-	ethCl, err := ethclient.Dial("http://127.0.0.1:8545")
-	if err != nil {
-		return nil, err
-	}
-
 	rhc := &ReverseHashCli{
-		ethClient:            ethCl,
+		ethClient:            ethClient,
 		from:                 from,
 		signer:               signerFn,
 		rpcTimeout:           30 * time.Second,

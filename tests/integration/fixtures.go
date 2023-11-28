@@ -5,14 +5,20 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/iden3/merkletree-proof/eth"
 )
 
 func NewTestEthRpcReserveHashCli(contractAddress common.Address) (*eth.ReverseHashCli, error) {
+	ethCl, err := ethclient.Dial("http://127.0.0.1:8545")
+	if err != nil {
+		return nil, err
+	}
 	signer := NewTestSigner()
 	fromAddr, _ := signer.Address()
 
-	return eth.NewReverseHashCli(contractAddress,
+	return eth.NewReverseHashCli(ethCl,
+		contractAddress,
 		fromAddr,
 		signer.SignerFn,
 	)
