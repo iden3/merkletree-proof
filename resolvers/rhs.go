@@ -20,7 +20,7 @@ import (
 type RHSResolver struct {
 }
 
-// resolve is a method to resolve a credential status from the RHS.
+// Resolve is a method to resolve a credential status from the RHS.
 func (RHSResolver) Resolve(status verifiable.CredentialStatus, cfg verifiable.CredentialStatusConfig) (out verifiable.RevocationStatus, err error) {
 	parsedIssuerDID, err := w3c.ParseDID(*cfg.IssuerDID)
 	if err != nil {
