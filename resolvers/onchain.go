@@ -21,7 +21,7 @@ import (
 type OnChainResolver struct {
 }
 
-// resolve is a method to resolve a credential status from the blockchain.
+// Resolve is a method to resolve a credential status from the blockchain.
 func (OnChainResolver) Resolve(status verifiable.CredentialStatus, cfg verifiable.CredentialStatusConfig) (out verifiable.RevocationStatus, err error) {
 	parsedIssuerDID, err := w3c.ParseDID(*cfg.IssuerDID)
 	if err != nil {
