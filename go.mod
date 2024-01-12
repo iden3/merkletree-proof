@@ -7,7 +7,7 @@ require (
 	github.com/iden3/contracts-abi/rhs-storage/go/abi v0.0.0-20231006141557-7d13ef7e3c48
 	github.com/iden3/go-iden3-core/v2 v2.0.3
 	github.com/iden3/go-merkletree-sql/v2 v2.0.4
-	github.com/iden3/go-schema-processor/v2 v2.1.2-0.20240112113022-8b3a33d14095
+	github.com/iden3/go-schema-processor/v2 v2.1.2-0.20240112120206-b771bd539fcf
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
 )
