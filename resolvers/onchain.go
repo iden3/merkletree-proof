@@ -10,20 +10,34 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	onchainABI "github.com/iden3/contracts-abi/onchain-credential-status-resolver/go/abi"
+	"github.com/iden3/contracts-abi/state/go/abi"
 	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/v2/utils"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	"github.com/pkg/errors"
 )
 
-// OnChainIssuer is a struct that allows to interact with the onchain contract and build the revocation status.
+// OnChainResolverConfig options for credential status verification
+type OnChainResolverConfig struct {
+	EthClients        map[core.ChainID]*ethclient.Client
+	StateContractAddr common.Address
+	IssuerDID         *w3c.DID
+}
+
+// OnChainResolver is a struct that allows to interact with the onchain contract and build the revocation status.
 type OnChainResolver struct {
+	config OnChainResolverConfig
 }
 
 // Resolve is a method to resolve a credential status from the blockchain.
-func (OnChainResolver) Resolve(context context.Context, status verifiable.CredentialStatus, cfg verifiable.CredentialStatusConfig) (out verifiable.RevocationStatus, err error) {
-	issuerID, err := core.IDFromDID(*cfg.IssuerDID)
+func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
+	issuerID, err := core.IDFromDID(*r.config.IssuerDID)
 	if err != nil {
 		return out, err
 	}
@@ -31,6 +45,15 @@ func (OnChainResolver) Resolve(context context.Context, status verifiable.Creden
 	var zeroID core.ID
 	if issuerID == zeroID {
 		return out, errors.New("issuer ID is empty")
+	}
+
+	ethClient, err := getEthClientForDID(r.config.IssuerDID, r.config.EthClients)
+	if err != nil {
+		return out, err
+	}
+	contractCaller, err := onchainABI.NewOnchainCredentialStatusResolverCaller(r.config.StateContractAddr, ethClient)
+	if err != nil {
+		return out, err
 	}
 
 	onchainRevStatus, err := newOnchainRevStatusFromURI(status.ID)
@@ -45,14 +68,16 @@ func (OnChainResolver) Resolve(context context.Context, status verifiable.Creden
 			onchainRevStatus.revNonce, status.RevocationNonce)
 	}
 
-	isStateContractHasID, err := stateContractHasID(&issuerID, cfg.StateResolver)
+	isStateContractHasID, err := stateContractHasID(ctx, r.config.StateContractAddr, ethClient, &issuerID)
 	if err != nil {
 		return out, err
 	}
 
-	var resp verifiable.RevocationStatus
+	opts := &bind.CallOpts{Context: ctx}
+
+	var resp onchainABI.IOnchainCredentialStatusResolverCredentialStatus
 	if isStateContractHasID {
-		resp, err = cfg.StateResolver.GetRevocationStatus(issuerID.BigInt(),
+		resp, err = contractCaller.GetRevocationStatus(opts, issuerID.BigInt(),
 			onchainRevStatus.revNonce)
 		if err != nil {
 			msg := err.Error()
@@ -68,7 +93,8 @@ func (OnChainResolver) Resolve(context context.Context, status verifiable.Creden
 			return out, errors.New(
 				"genesis state is not specified in OnChainCredentialStatus ID")
 		}
-		resp, err = cfg.StateResolver.GetRevocationStatusByIDAndState(
+		resp, err = contractCaller.GetRevocationStatusByIdAndState(
+			opts,
 			issuerID.BigInt(), onchainRevStatus.genesisState,
 			onchainRevStatus.revNonce)
 		if err != nil {
@@ -78,7 +104,7 @@ func (OnChainResolver) Resolve(context context.Context, status verifiable.Creden
 		}
 	}
 
-	return resp, nil
+	return toRevocationStatus(resp)
 }
 
 func newOnchainRevStatusFromURI(stateID string) (onChainRevStatus, error) {
@@ -164,7 +190,7 @@ func newIntFromBytesLE(bs []byte) *big.Int {
 	return new(big.Int).SetBytes(utils.SwapEndianness(bs))
 }
 
-func stateContractHasID(id *core.ID, resolver verifiable.CredStatusStateResolver) (bool, error) {
+func stateContractHasID(ctx context.Context, stateAddr common.Address, ethClient *ethclient.Client, id *core.ID) (bool, error) {
 
 	idsInStateContractLock.RLock()
 	ok := idsInStateContract[*id]
@@ -181,7 +207,7 @@ func stateContractHasID(id *core.ID, resolver verifiable.CredStatusStateResolver
 		return ok, nil
 	}
 
-	_, err := lastStateFromContract(resolver, id)
+	_, err := lastStateFromContract(ctx, stateAddr, ethClient, id)
 	if errors.Is(err, errIdentityDoesNotExist) {
 		return false, nil
 	} else if err != nil {
@@ -218,23 +244,123 @@ func isErrIdentityDoesNotExist(err error) bool {
 var idsInStateContract = map[core.ID]bool{}
 var idsInStateContractLock sync.RWMutex
 
-func lastStateFromContract(resolver verifiable.CredStatusStateResolver,
+func lastStateFromContract(ctx context.Context, stateAddr common.Address, ethClient *ethclient.Client,
 	id *core.ID) (*merkletree.Hash, error) {
 	var zeroID core.ID
 	if id == nil || *id == zeroID {
 		return nil, errors.New("ID is empty")
 	}
 
-	resp, err := resolver.GetStateInfoByID(id.BigInt())
+	contractCaller, err := abi.NewStateCaller(stateAddr, ethClient)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := &bind.CallOpts{Context: ctx}
+	resp, err := contractCaller.GetStateInfoById(opts, id.BigInt())
 	if isErrIdentityDoesNotExist(err) {
 		return nil, errIdentityDoesNotExist
 	} else if err != nil {
 		return nil, err
 	}
 
-	if resp.State == "" {
+	if resp.State == nil {
 		return nil, errors.New("got empty state")
 	}
 
-	return merkletree.NewHashFromString(resp.State)
+	return merkletree.NewHashFromBigInt(resp.State)
+}
+
+func getEthClientForDID(did *w3c.DID, ethClients map[core.ChainID]*ethclient.Client) (*ethclient.Client, error) {
+	chainID, err := core.ChainIDfromDID(*did)
+	if err != nil {
+		return nil, err
+	}
+
+	ethClient, ok := ethClients[chainID]
+	if !ok {
+		return nil, errors.Errorf("chain id is not registered for network %v", chainID)
+	}
+	return ethClient, nil
+}
+
+func toRevocationStatus(status onchainABI.IOnchainCredentialStatusResolverCredentialStatus) (out verifiable.RevocationStatus, err error) {
+	var existence bool
+	var nodeAux *merkletree.NodeAux
+
+	if status.Mtp.Existence {
+		existence = true
+	} else {
+		existence = false
+		if status.Mtp.AuxExistence {
+			nodeAux = &merkletree.NodeAux{}
+			nodeAux.Key, err = merkletree.NewHashFromBigInt(status.Mtp.AuxIndex)
+			if err != nil {
+				return out, errors.New("aux index is not a number")
+			}
+			nodeAux.Value, err = merkletree.NewHashFromBigInt(status.Mtp.AuxValue)
+			if err != nil {
+				return out, errors.New("aux value is not a number")
+			}
+		}
+	}
+
+	depth := calculateDepth(status.Mtp.Siblings)
+	allSiblings := make([]*merkletree.Hash, depth)
+	for i := 0; i < depth; i++ {
+		sh, err := merkletree.NewHashFromBigInt(status.Mtp.Siblings[i])
+		if err != nil {
+			return out, errors.New("sibling is not a number")
+		}
+		allSiblings[i] = sh
+	}
+
+	proof, err := merkletree.NewProofFromData(existence, allSiblings, nodeAux)
+	if err != nil {
+		return out, errors.New("failed to create proof")
+	}
+
+	state, err := merkletree.NewHashFromBigInt(status.Issuer.State)
+	if err != nil {
+		return out, errors.New("state is not a number")
+	}
+
+	claimsRoot, err := merkletree.NewHashFromBigInt(status.Issuer.ClaimsTreeRoot)
+	if err != nil {
+		return out, errors.New("state is not a number")
+	}
+
+	revocationRoot, err := merkletree.NewHashFromBigInt(status.Issuer.RevocationTreeRoot)
+	if err != nil {
+		return out, errors.New("state is not a number")
+	}
+
+	rootOfRoots, err := merkletree.NewHashFromBigInt(status.Issuer.RootOfRoots)
+	if err != nil {
+		return out, errors.New("state is not a number")
+	}
+
+	stateHex := state.Hex()
+	claimsRootHex := claimsRoot.Hex()
+	revocationRootHex := revocationRoot.Hex()
+	rootOfRootsHex := rootOfRoots.Hex()
+
+	return verifiable.RevocationStatus{
+		MTP: *proof,
+		Issuer: verifiable.Issuer{
+			State:              &stateHex,
+			ClaimsTreeRoot:     &claimsRootHex,
+			RevocationTreeRoot: &revocationRootHex,
+			RootOfRoots:        &rootOfRootsHex,
+		},
+	}, nil
+}
+
+func calculateDepth(siblings []*big.Int) int {
+	for i := len(siblings) - 1; i >= 0; i-- {
+		if siblings[i].Cmp(big.NewInt(0)) != 0 {
+			return i + 1
+		}
+	}
+	return 0
 }

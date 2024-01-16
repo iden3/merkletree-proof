@@ -8,20 +8,31 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	mp "github.com/iden3/merkletree-proof/http"
 	"github.com/pkg/errors"
 )
 
+// RHSResolverConfig options for credential status verification
+type RHSResolverConfig struct {
+	EthClients        map[core.ChainID]*ethclient.Client
+	StateContractAddr common.Address
+	IssuerDID         *w3c.DID
+}
+
 // RHSResolver is a struct that allows to interact with the RHS service to get revocation status.
 type RHSResolver struct {
+	config RHSResolverConfig
 }
 
 // Resolve is a method to resolve a credential status from the RHS.
-func (RHSResolver) Resolve(context context.Context, status verifiable.CredentialStatus, cfg verifiable.CredentialStatusConfig) (out verifiable.RevocationStatus, err error) {
-	issuerID, err := core.IDFromDID(*cfg.IssuerDID)
+func (r RHSResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
+	issuerID, err := core.IDFromDID(*r.config.IssuerDID)
 	if err != nil {
 		return out, err
 	}
@@ -33,7 +44,11 @@ func (RHSResolver) Resolve(context context.Context, status verifiable.Credential
 		return out, err
 	}
 
-	state, err := identityStateForRHS(cfg.StateResolver, &issuerID, genesisState)
+	ethClient, err := getEthClientForDID(r.config.IssuerDID, r.config.EthClients)
+	if err != nil {
+		return out, err
+	}
+	state, err := identityStateForRHS(ctx, r.config.StateContractAddr, ethClient, &issuerID, genesisState)
 	if err != nil {
 		return out, err
 	}
@@ -43,7 +58,7 @@ func (RHSResolver) Resolve(context context.Context, status verifiable.Credential
 		return out, err
 	}
 
-	out.Issuer, err = issuerFromRHS(context, *rhsCli, state)
+	out.Issuer, err = issuerFromRHS(ctx, *rhsCli, state)
 	if errors.Is(err, mp.ErrNodeNotFound) {
 		if genesisState != nil && state.Equals(genesisState) {
 			return out, errors.New("genesis state is not found in RHS")
@@ -63,7 +78,7 @@ func (RHSResolver) Resolve(context context.Context, status verifiable.Credential
 	if err != nil {
 		return out, err
 	}
-	proof, err := rhsCli.GenerateProof(context, revTreeRootHash,
+	proof, err := rhsCli.GenerateProof(ctx, revTreeRootHash,
 		revNonceHash)
 	if err != nil {
 		return out, err
@@ -74,10 +89,10 @@ func (RHSResolver) Resolve(context context.Context, status verifiable.Credential
 	return out, nil
 }
 
-func identityStateForRHS(resolver verifiable.CredStatusStateResolver, issuerID *core.ID,
+func identityStateForRHS(ctx context.Context, stateAddr common.Address, ethClient *ethclient.Client, issuerID *core.ID,
 	genesisState *merkletree.Hash) (*merkletree.Hash, error) {
 
-	state, err := lastStateFromContract(resolver, issuerID)
+	state, err := lastStateFromContract(ctx, stateAddr, ethClient, issuerID)
 	if !errors.Is(err, errIdentityDoesNotExist) {
 		return state, err
 	}
