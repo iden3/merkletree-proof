@@ -1,6 +1,7 @@
 package resolvers
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -10,7 +11,6 @@ import (
 	"sync"
 
 	core "github.com/iden3/go-iden3-core/v2"
-	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/v2/utils"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
@@ -22,13 +22,8 @@ type OnChainResolver struct {
 }
 
 // Resolve is a method to resolve a credential status from the blockchain.
-func (OnChainResolver) Resolve(status verifiable.CredentialStatus, cfg verifiable.CredentialStatusConfig) (out verifiable.RevocationStatus, err error) {
-	parsedIssuerDID, err := w3c.ParseDID(*cfg.IssuerDID)
-	if err != nil {
-		return out, err
-	}
-
-	issuerID, err := core.IDFromDID(*parsedIssuerDID)
+func (OnChainResolver) Resolve(context context.Context, status verifiable.CredentialStatus, cfg verifiable.CredentialStatusConfig) (out verifiable.RevocationStatus, err error) {
+	issuerID, err := core.IDFromDID(*cfg.IssuerDID)
 	if err != nil {
 		return out, err
 	}

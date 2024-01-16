@@ -9,7 +9,6 @@ import (
 	"time"
 
 	core "github.com/iden3/go-iden3-core/v2"
-	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	mp "github.com/iden3/merkletree-proof/http"
@@ -21,13 +20,8 @@ type RHSResolver struct {
 }
 
 // Resolve is a method to resolve a credential status from the RHS.
-func (RHSResolver) Resolve(status verifiable.CredentialStatus, cfg verifiable.CredentialStatusConfig) (out verifiable.RevocationStatus, err error) {
-	parsedIssuerDID, err := w3c.ParseDID(*cfg.IssuerDID)
-	if err != nil {
-		return out, err
-	}
-
-	issuerID, err := core.IDFromDID(*parsedIssuerDID)
+func (RHSResolver) Resolve(context context.Context, status verifiable.CredentialStatus, cfg verifiable.CredentialStatusConfig) (out verifiable.RevocationStatus, err error) {
+	issuerID, err := core.IDFromDID(*cfg.IssuerDID)
 	if err != nil {
 		return out, err
 	}
@@ -49,7 +43,7 @@ func (RHSResolver) Resolve(status verifiable.CredentialStatus, cfg verifiable.Cr
 		return out, err
 	}
 
-	out.Issuer, err = issuerFromRHS(context.Background(), *rhsCli, state)
+	out.Issuer, err = issuerFromRHS(context, *rhsCli, state)
 	if errors.Is(err, mp.ErrNodeNotFound) {
 		if genesisState != nil && state.Equals(genesisState) {
 			return out, errors.New("genesis state is not found in RHS")
@@ -69,7 +63,7 @@ func (RHSResolver) Resolve(status verifiable.CredentialStatus, cfg verifiable.Cr
 	if err != nil {
 		return out, err
 	}
-	proof, err := rhsCli.GenerateProof(context.Background(), revTreeRootHash,
+	proof, err := rhsCli.GenerateProof(context, revTreeRootHash,
 		revNonceHash)
 	if err != nil {
 		return out, err
