@@ -51,12 +51,13 @@ func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.Credenti
 	if err != nil {
 		return out, err
 	}
-	contractCaller, err := onchainABI.NewOnchainCredentialStatusResolverCaller(r.config.StateContractAddr, ethClient)
+
+	onchainRevStatus, err := newOnchainRevStatusFromURI(status.ID)
 	if err != nil {
 		return out, err
 	}
 
-	onchainRevStatus, err := newOnchainRevStatusFromURI(status.ID)
+	contractCaller, err := onchainABI.NewOnchainCredentialStatusResolverCaller(onchainRevStatus.contractAddress, ethClient)
 	if err != nil {
 		return out, err
 	}
@@ -130,7 +131,7 @@ func newOnchainRevStatusFromURI(stateID string) (onChainRevStatus, error) {
 	if err != nil {
 		return s, err
 	}
-	s.contractAddress = contractParts[1]
+	s.contractAddress = common.HexToAddress(contractParts[1])
 
 	revocationNonce := uri.Query().Get("revocationNonce")
 	if revocationNonce == "" {
@@ -220,7 +221,7 @@ func stateContractHasID(ctx context.Context, stateAddr common.Address, ethClient
 
 type onChainRevStatus struct {
 	chainID         core.ChainID
-	contractAddress string
+	contractAddress common.Address
 	revNonce        uint64
 	genesisState    *big.Int
 }
