@@ -25,6 +25,30 @@ type RHSResolverConfig struct {
 	IssuerDID         *w3c.DID
 }
 
+// RHSResolverOpts returns configuration options for AgentResolverOpts
+type RHSResolverOpts func(opts *RHSResolverConfig)
+
+// WithEthClients return new options
+func WithEthClients(ethClients map[core.ChainID]*ethclient.Client) RHSResolverOpts {
+	return func(opts *RHSResolverConfig) {
+		opts.EthClients = ethClients
+	}
+}
+
+// WithStateContractAddr return new options
+func WithStateContractAddr(address common.Address) RHSResolverOpts {
+	return func(opts *RHSResolverConfig) {
+		opts.StateContractAddr = address
+	}
+}
+
+// WithIssuerDID return new options
+func WithIssuerDID(issuerDID *w3c.DID) RHSResolverOpts {
+	return func(opts *RHSResolverConfig) {
+		opts.IssuerDID = issuerDID
+	}
+}
+
 // RHSResolver is a struct that allows to interact with the RHS service to get revocation status.
 type RHSResolver struct {
 	config RHSResolverConfig
