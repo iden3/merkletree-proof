@@ -49,11 +49,10 @@ func TestRhsResolver(t *testing.T) {
 	var ethClients map[core.ChainID]*ethclient.Client = make(map[core.ChainID]*ethclient.Client)
 	ethClients[80001] = client
 
-	opts := []RHSResolverOpts{WithEthClients(ethClients), WithIssuerDID(issuerDID), WithStateContractAddr(stateAddr)}
-
-	config := RHSResolverConfig{}
-	for _, o := range opts {
-		o(&config)
+	config := RHSResolverConfig{
+		IssuerDID:         issuerDID,
+		EthClients:        ethClients,
+		StateContractAddr: stateAddr,
 	}
 
 	rhsResolver := RHSResolver{config}

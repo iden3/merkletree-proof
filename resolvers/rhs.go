@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	core "github.com/iden3/go-iden3-core/v2"
-	"github.com/iden3/go-iden3-core/v2/w3c"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	mp "github.com/iden3/merkletree-proof/http"
@@ -19,35 +18,7 @@ import (
 )
 
 // RHSResolverConfig options for credential status verification
-type RHSResolverConfig struct {
-	EthClients        map[core.ChainID]*ethclient.Client
-	StateContractAddr common.Address
-	IssuerDID         *w3c.DID
-}
-
-// RHSResolverOpts returns configuration options for AgentResolverOpts
-type RHSResolverOpts func(opts *RHSResolverConfig)
-
-// WithEthClients return new options
-func WithEthClients(ethClients map[core.ChainID]*ethclient.Client) RHSResolverOpts {
-	return func(opts *RHSResolverConfig) {
-		opts.EthClients = ethClients
-	}
-}
-
-// WithStateContractAddr return new options
-func WithStateContractAddr(address common.Address) RHSResolverOpts {
-	return func(opts *RHSResolverConfig) {
-		opts.StateContractAddr = address
-	}
-}
-
-// WithIssuerDID return new options
-func WithIssuerDID(issuerDID *w3c.DID) RHSResolverOpts {
-	return func(opts *RHSResolverConfig) {
-		opts.IssuerDID = issuerDID
-	}
-}
+type RHSResolverConfig OnChainResolverConfig
 
 // RHSResolver is a struct that allows to interact with the RHS service to get revocation status.
 type RHSResolver struct {
