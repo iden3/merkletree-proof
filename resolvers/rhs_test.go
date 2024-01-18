@@ -50,13 +50,12 @@ func TestRhsResolver(t *testing.T) {
 	ethClients[80001] = client
 
 	config := RHSResolverConfig{
-		IssuerDID:         issuerDID,
 		EthClients:        ethClients,
 		StateContractAddr: stateAddr,
 	}
 
 	rhsResolver := NewRHSResolver(config)
-	_, err = rhsResolver.Resolve(context.Background(), credStatus)
+	_, err = rhsResolver.Resolve(context.Background(), credStatus, &verifiable.CredentialStatusResolveOptions{IssuerDID: issuerDID})
 	require.NoError(t, err)
 
 }

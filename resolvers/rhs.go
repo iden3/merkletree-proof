@@ -31,8 +31,8 @@ func NewRHSResolver(config RHSResolverConfig) *RHSResolver {
 }
 
 // Resolve is a method to resolve a credential status from the RHS.
-func (r RHSResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
-	issuerID, err := core.IDFromDID(*r.config.IssuerDID)
+func (r RHSResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus, opts *verifiable.CredentialStatusResolveOptions) (out verifiable.RevocationStatus, err error) {
+	issuerID, err := core.IDFromDID(*opts.IssuerDID)
 	if err != nil {
 		return out, err
 	}
@@ -44,7 +44,7 @@ func (r RHSResolver) Resolve(ctx context.Context, status verifiable.CredentialSt
 		return out, err
 	}
 
-	ethClient, err := getEthClientForDID(r.config.IssuerDID, r.config.EthClients)
+	ethClient, err := getEthClientForDID(opts.IssuerDID, r.config.EthClients)
 	if err != nil {
 		return out, err
 	}

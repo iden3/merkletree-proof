@@ -9,7 +9,7 @@ require (
 	github.com/iden3/contracts-abi/state/go/abi v0.0.0-20230405152923-4a25f6f1f0f4
 	github.com/iden3/go-iden3-core/v2 v2.0.3
 	github.com/iden3/go-merkletree-sql/v2 v2.0.4
-	github.com/iden3/go-schema-processor/v2 v2.1.3-0.20240116084732-b5c2484f9357
+	github.com/iden3/go-schema-processor/v2 v2.2.1-0.20240118174550-f1f74877ba9e
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4

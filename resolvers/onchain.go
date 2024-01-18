@@ -27,7 +27,6 @@ import (
 type OnChainResolverConfig struct {
 	EthClients        map[core.ChainID]*ethclient.Client
 	StateContractAddr common.Address
-	IssuerDID         *w3c.DID
 }
 
 // OnChainResolver is a struct that allows to interact with the onchain contract and build the revocation status.
@@ -41,8 +40,8 @@ func NewOnChainResolver(config OnChainResolverConfig) *OnChainResolver {
 }
 
 // Resolve is a method to resolve a credential status from the blockchain.
-func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
-	issuerID, err := core.IDFromDID(*r.config.IssuerDID)
+func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus, opts *verifiable.CredentialStatusResolveOptions) (out verifiable.RevocationStatus, err error) {
+	issuerID, err := core.IDFromDID(*opts.IssuerDID)
 	if err != nil {
 		return out, err
 	}
@@ -52,7 +51,7 @@ func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.Credenti
 		return out, errors.New("issuer ID is empty")
 	}
 
-	ethClient, err := getEthClientForDID(r.config.IssuerDID, r.config.EthClients)
+	ethClient, err := getEthClientForDID(opts.IssuerDID, r.config.EthClients)
 	if err != nil {
 		return out, err
 	}
@@ -79,11 +78,11 @@ func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.Credenti
 		return out, err
 	}
 
-	opts := &bind.CallOpts{Context: ctx}
+	contractOpts := &bind.CallOpts{Context: ctx}
 
 	var resp onchainABI.IOnchainCredentialStatusResolverCredentialStatus
 	if isStateContractHasID {
-		resp, err = contractCaller.GetRevocationStatus(opts, issuerID.BigInt(),
+		resp, err = contractCaller.GetRevocationStatus(contractOpts, issuerID.BigInt(),
 			onchainRevStatus.revNonce)
 		if err != nil {
 			msg := err.Error()
@@ -100,7 +99,7 @@ func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.Credenti
 				"genesis state is not specified in OnChainCredentialStatus ID")
 		}
 		resp, err = contractCaller.GetRevocationStatusByIdAndState(
-			opts,
+			contractOpts,
 			issuerID.BigInt(), onchainRevStatus.genesisState,
 			onchainRevStatus.revNonce)
 		if err != nil {
