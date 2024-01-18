@@ -55,7 +55,7 @@ func TestRhsResolver(t *testing.T) {
 		StateContractAddr: stateAddr,
 	}
 
-	rhsResolver := RHSResolver{config}
+	rhsResolver := NewRHSResolver(config)
 	_, err = rhsResolver.Resolve(context.Background(), credStatus)
 	require.NoError(t, err)
 

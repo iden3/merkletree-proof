@@ -25,6 +25,11 @@ type RHSResolver struct {
 	config RHSResolverConfig
 }
 
+// NewRHSResolver returns new RHS resolver
+func NewRHSResolver(config RHSResolverConfig) *RHSResolver {
+	return &RHSResolver{config}
+}
+
 // Resolve is a method to resolve a credential status from the RHS.
 func (r RHSResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
 	issuerID, err := core.IDFromDID(*r.config.IssuerDID)

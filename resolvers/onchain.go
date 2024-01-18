@@ -35,6 +35,11 @@ type OnChainResolver struct {
 	config OnChainResolverConfig
 }
 
+// NewOnChainResolver returns new onChain resolver
+func NewOnChainResolver(config OnChainResolverConfig) *OnChainResolver {
+	return &OnChainResolver{config}
+}
+
 // Resolve is a method to resolve a credential status from the blockchain.
 func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
 	issuerID, err := core.IDFromDID(*r.config.IssuerDID)

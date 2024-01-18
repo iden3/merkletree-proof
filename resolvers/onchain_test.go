@@ -39,7 +39,7 @@ func TestOnChainResolver(t *testing.T) {
 		StateContractAddr: stateAddr,
 	}
 
-	onChainResolver := OnChainResolver{config}
+	onChainResolver := NewOnChainResolver(config)
 
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
