@@ -40,8 +40,12 @@ func NewOnChainResolver(config OnChainResolverConfig) *OnChainResolver {
 }
 
 // Resolve is a method to resolve a credential status from the blockchain.
-func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus, opts *verifiable.CredentialStatusResolveOptions) (out verifiable.RevocationStatus, err error) {
-	issuerID, err := core.IDFromDID(*opts.IssuerDID)
+func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus, opts ...verifiable.CredentialStatusResolveOpt) (out verifiable.RevocationStatus, err error) {
+	config := verifiable.CredentialStatusResolveConfig{}
+	for _, o := range opts {
+		o(&config)
+	}
+	issuerID, err := core.IDFromDID(*config.IssuerDID)
 	if err != nil {
 		return out, err
 	}
@@ -51,7 +55,7 @@ func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.Credenti
 		return out, errors.New("issuer ID is empty")
 	}
 
-	ethClient, err := getEthClientForDID(opts.IssuerDID, r.config.EthClients)
+	ethClient, err := getEthClientForDID(config.IssuerDID, r.config.EthClients)
 	if err != nil {
 		return out, err
 	}

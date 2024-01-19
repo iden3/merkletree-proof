@@ -55,7 +55,8 @@ func TestRhsResolver(t *testing.T) {
 	}
 
 	rhsResolver := NewRHSResolver(config)
-	_, err = rhsResolver.Resolve(context.Background(), credStatus, &verifiable.CredentialStatusResolveOptions{IssuerDID: issuerDID})
+	resolveOpts := []verifiable.CredentialStatusResolveOpt{verifiable.WithIssuerDID(issuerDID)}
+	_, err = rhsResolver.Resolve(context.Background(), credStatus, resolveOpts...)
 	require.NoError(t, err)
 
 }
