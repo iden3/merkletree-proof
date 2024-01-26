@@ -40,12 +40,15 @@ func NewOnChainResolver(config OnChainResolverConfig) *OnChainResolver {
 }
 
 // Resolve is a method to resolve a credential status from the blockchain.
-func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus, opts ...verifiable.CredentialStatusResolveOpt) (out verifiable.RevocationStatus, err error) {
-	config := verifiable.CredentialStatusResolveConfig{}
-	for _, o := range opts {
-		o(&config)
+func (r OnChainResolver) Resolve(ctx context.Context,
+	status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
+
+	issuerDID := verifiable.GetIssuerDID(ctx)
+	if issuerDID == nil {
+		return out, errors.New("issuer DID is not set in context")
 	}
-	issuerID, err := core.IDFromDID(*config.IssuerDID)
+
+	issuerID, err := core.IDFromDID(*issuerDID)
 	if err != nil {
 		return out, err
 	}
@@ -55,7 +58,7 @@ func (r OnChainResolver) Resolve(ctx context.Context, status verifiable.Credenti
 		return out, errors.New("issuer ID is empty")
 	}
 
-	ethClient, err := getEthClientForDID(config.IssuerDID, r.config.EthClients)
+	ethClient, err := getEthClientForDID(issuerDID, r.config.EthClients)
 	if err != nil {
 		return out, err
 	}
@@ -356,7 +359,7 @@ func toRevocationStatus(status onchainABI.IOnchainCredentialStatusResolverCreden
 
 	return verifiable.RevocationStatus{
 		MTP: *proof,
-		Issuer: verifiable.Issuer{
+		Issuer: verifiable.TreeState{
 			State:              &stateHex,
 			ClaimsTreeRoot:     &claimsRootHex,
 			RevocationTreeRoot: &revocationRootHex,
