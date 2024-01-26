@@ -10,7 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	core "github.com/iden3/go-iden3-core/v2"
+	"github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	mp "github.com/iden3/merkletree-proof/http"
@@ -31,13 +31,15 @@ func NewRHSResolver(config RHSResolverConfig) *RHSResolver {
 }
 
 // Resolve is a method to resolve a credential status from the RHS.
-func (r RHSResolver) Resolve(ctx context.Context, status verifiable.CredentialStatus, opts ...verifiable.CredentialStatusResolveOpt) (out verifiable.RevocationStatus, err error) {
-	config := verifiable.CredentialStatusResolveConfig{}
-	for _, o := range opts {
-		o(&config)
+func (r RHSResolver) Resolve(ctx context.Context,
+	status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
+
+	issuerDID := verifiable.GetIssuerDID(ctx)
+	if issuerDID == nil {
+		return out, errors.New("issuer DID is not set in context")
 	}
 
-	issuerID, err := core.IDFromDID(*config.IssuerDID)
+	issuerID, err := core.IDFromDID(*issuerDID)
 	if err != nil {
 		return out, err
 	}
@@ -49,7 +51,7 @@ func (r RHSResolver) Resolve(ctx context.Context, status verifiable.CredentialSt
 		return out, err
 	}
 
-	ethClient, err := getEthClientForDID(config.IssuerDID, r.config.EthClients)
+	ethClient, err := getEthClientForDID(issuerDID, r.config.EthClients)
 	if err != nil {
 		return out, err
 	}
@@ -130,9 +132,9 @@ func genesisStateMatch(state *merkletree.Hash, id core.ID) (bool, error) {
 }
 
 func issuerFromRHS(ctx context.Context, rhsCli mp.ReverseHashCli,
-	state *merkletree.Hash) (verifiable.Issuer, error) {
+	state *merkletree.Hash) (verifiable.TreeState, error) {
 
-	var issuer verifiable.Issuer
+	var issuer verifiable.TreeState
 
 	stateNode, err := rhsCli.GetNode(ctx, state)
 	if err != nil {
