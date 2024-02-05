@@ -33,12 +33,10 @@ func TestOnChainResolver(t *testing.T) {
 	var ethClients map[core.ChainID]*ethclient.Client = make(map[core.ChainID]*ethclient.Client)
 	ethClients[80001] = client
 
-	config := OnChainResolverConfig{
-		EthClients:        ethClients,
-		StateContractAddr: stateAddr,
-	}
+	var stateAddresses map[core.ChainID]common.Address = make(map[core.ChainID]common.Address)
+	stateAddresses[80001] = stateAddr
 
-	onChainResolver := NewOnChainResolver(config)
+	onChainResolver := NewOnChainResolver(ethClients, stateAddresses)
 
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()

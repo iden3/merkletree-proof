@@ -10,29 +10,34 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/iden3/go-iden3-core/v2"
+	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
 	mp "github.com/iden3/merkletree-proof/http"
 	"github.com/pkg/errors"
 )
 
-// RHSResolverConfig options for credential status verification
-type RHSResolverConfig OnChainResolverConfig
-
 // RHSResolver is a struct that allows to interact with the RHS service to get revocation status.
 type RHSResolver struct {
-	config RHSResolverConfig
+	ethClients             map[core.ChainID]*ethclient.Client
+	stateContractAddresses map[core.ChainID]common.Address
 }
 
 // NewRHSResolver returns new RHS resolver
-func NewRHSResolver(config RHSResolverConfig) *RHSResolver {
-	return &RHSResolver{config}
+func NewRHSResolver(ethClients map[core.ChainID]*ethclient.Client, stateContractAddresses map[core.ChainID]common.Address) *RHSResolver {
+	return &RHSResolver{
+		ethClients:             ethClients,
+		stateContractAddresses: stateContractAddresses,
+	}
 }
 
 // Resolve is a method to resolve a credential status from the RHS.
 func (r RHSResolver) Resolve(ctx context.Context,
 	status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
+
+	if status.Type != verifiable.Iden3ReverseSparseMerkleTreeProof {
+		return out, errors.New("invalid status type")
+	}
 
 	issuerDID := verifiable.GetIssuerDID(ctx)
 	if issuerDID == nil {
@@ -51,11 +56,16 @@ func (r RHSResolver) Resolve(ctx context.Context,
 		return out, err
 	}
 
-	ethClient, err := getEthClientForDID(issuerDID, r.config.EthClients)
+	ethClient, err := getEthClientForDID(issuerDID, r.ethClients)
 	if err != nil {
 		return out, err
 	}
-	state, err := identityStateForRHS(ctx, r.config.StateContractAddr, ethClient, &issuerID, genesisState)
+
+	stateAddr, err := getStateContractForDID(issuerDID, r.stateContractAddresses)
+	if err != nil {
+		return out, err
+	}
+	state, err := identityStateForRHS(ctx, stateAddr, ethClient, &issuerID, genesisState)
 	if err != nil {
 		return out, err
 	}

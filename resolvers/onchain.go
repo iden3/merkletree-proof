@@ -23,25 +23,27 @@ import (
 	"github.com/pkg/errors"
 )
 
-// OnChainResolverConfig options for credential status verification
-type OnChainResolverConfig struct {
-	EthClients        map[core.ChainID]*ethclient.Client
-	StateContractAddr common.Address
-}
-
 // OnChainResolver is a struct that allows to interact with the onchain contract and build the revocation status.
 type OnChainResolver struct {
-	config OnChainResolverConfig
+	ethClients             map[core.ChainID]*ethclient.Client
+	stateContractAddresses map[core.ChainID]common.Address
 }
 
 // NewOnChainResolver returns new onChain resolver
-func NewOnChainResolver(config OnChainResolverConfig) *OnChainResolver {
-	return &OnChainResolver{config}
+func NewOnChainResolver(ethClients map[core.ChainID]*ethclient.Client, stateContractAddresses map[core.ChainID]common.Address) *OnChainResolver {
+	return &OnChainResolver{
+		ethClients:             ethClients,
+		stateContractAddresses: stateContractAddresses,
+	}
 }
 
 // Resolve is a method to resolve a credential status from the blockchain.
 func (r OnChainResolver) Resolve(ctx context.Context,
 	status verifiable.CredentialStatus) (out verifiable.RevocationStatus, err error) {
+
+	if status.Type != verifiable.Iden3OnchainSparseMerkleTreeProof2023 {
+		return out, errors.New("invalid status type")
+	}
 
 	issuerDID := verifiable.GetIssuerDID(ctx)
 	if issuerDID == nil {
@@ -50,15 +52,15 @@ func (r OnChainResolver) Resolve(ctx context.Context,
 
 	issuerID, err := core.IDFromDID(*issuerDID)
 	if err != nil {
+		return out, errors.WithMessage((err), "can't parse issuer DID")
+	}
+
+	ethClient, err := getEthClientForDID(issuerDID, r.ethClients)
+	if err != nil {
 		return out, err
 	}
 
-	var zeroID core.ID
-	if issuerID == zeroID {
-		return out, errors.New("issuer ID is empty")
-	}
-
-	ethClient, err := getEthClientForDID(issuerDID, r.config.EthClients)
+	stateAddr, err := getStateContractForDID(issuerDID, r.stateContractAddresses)
 	if err != nil {
 		return out, err
 	}
@@ -80,7 +82,7 @@ func (r OnChainResolver) Resolve(ctx context.Context,
 			onchainRevStatus.revNonce, status.RevocationNonce)
 	}
 
-	isStateContractHasID, err := stateContractHasID(ctx, r.config.StateContractAddr, ethClient, &issuerID)
+	isStateContractHasID, err := stateContractHasID(ctx, stateAddr, ethClient, &issuerID)
 	if err != nil {
 		return out, err
 	}
@@ -302,6 +304,19 @@ func getEthClientForDID(did *w3c.DID, ethClients map[core.ChainID]*ethclient.Cli
 		return nil, errors.Errorf("chain id is not registered for network %v", chainID)
 	}
 	return ethClient, nil
+}
+
+func getStateContractForDID(did *w3c.DID, stateContracts map[core.ChainID]common.Address) (out common.Address, err error) {
+	chainID, err := core.ChainIDfromDID(*did)
+	if err != nil {
+		return out, err
+	}
+
+	contractAddr, ok := stateContracts[chainID]
+	if !ok {
+		return out, errors.Errorf("chain id is not registered for network %v", chainID)
+	}
+	return contractAddr, nil
 }
 
 func toRevocationStatus(status onchainABI.IOnchainCredentialStatusResolverCredentialStatus) (out verifiable.RevocationStatus, err error) {

@@ -49,12 +49,10 @@ func TestRhsResolver(t *testing.T) {
 	var ethClients map[core.ChainID]*ethclient.Client = make(map[core.ChainID]*ethclient.Client)
 	ethClients[80001] = client
 
-	config := RHSResolverConfig{
-		EthClients:        ethClients,
-		StateContractAddr: stateAddr,
-	}
+	var stateAddresses map[core.ChainID]common.Address = make(map[core.ChainID]common.Address)
+	stateAddresses[80001] = stateAddr
 
-	rhsResolver := NewRHSResolver(config)
+	rhsResolver := NewRHSResolver(ethClients, stateAddresses)
 	ctx := verifiable.WithIssuerDID(context.Background(), issuerDID)
 	_, err = rhsResolver.Resolve(ctx, credStatus)
 	require.NoError(t, err)
