@@ -256,6 +256,9 @@ func (is *syncedIDsSet) has(id core.ID) bool {
 func (is *syncedIDsSet) add(id core.ID) {
 	is.Lock()
 	defer is.Unlock()
+	if is.m == nil {
+		is.m = make(map[core.ID]bool)
+	}
 	is.m[id] = true
 }
 
