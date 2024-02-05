@@ -204,19 +204,8 @@ func newIntFromBytesLE(bs []byte) *big.Int {
 
 func stateContractHasID(ctx context.Context, stateAddr common.Address, ethClient *ethclient.Client, id *core.ID) (bool, error) {
 
-	idsInStateContractLock.RLock()
-	ok := idsInStateContract[*id]
-	idsInStateContractLock.RUnlock()
-	if ok {
-		return ok, nil
-	}
-
-	idsInStateContractLock.Lock()
-	defer idsInStateContractLock.Unlock()
-
-	ok = idsInStateContract[*id]
-	if ok {
-		return ok, nil
+	if idsInStateContract.has(*id) {
+		return true, nil
 	}
 
 	_, err := lastStateFromContract(ctx, stateAddr, ethClient, id)
@@ -226,7 +215,7 @@ func stateContractHasID(ctx context.Context, stateAddr common.Address, ethClient
 		return false, err
 	}
 
-	idsInStateContract[*id] = true
+	idsInStateContract.add(*id)
 	return true, err
 }
 
@@ -253,8 +242,24 @@ func isErrIdentityDoesNotExist(err error) bool {
 	return err.Error() == "execution reverted: Identity does not exist"
 }
 
-var idsInStateContract = map[core.ID]bool{}
-var idsInStateContractLock sync.RWMutex
+type syncedIDsSet struct {
+	sync.RWMutex
+	m map[core.ID]bool
+}
+
+func (is *syncedIDsSet) has(id core.ID) bool {
+	is.RLock()
+	defer is.RUnlock()
+	return is.m[id]
+}
+
+func (is *syncedIDsSet) add(id core.ID) {
+	is.Lock()
+	defer is.Unlock()
+	is.m[id] = true
+}
+
+var idsInStateContract syncedIDsSet
 
 func lastStateFromContract(ctx context.Context, stateAddr common.Address, ethClient *ethclient.Client,
 	id *core.ID) (*merkletree.Hash, error) {
@@ -339,17 +344,17 @@ func toRevocationStatus(status onchainABI.IOnchainCredentialStatusResolverCreden
 
 	claimsRoot, err := merkletree.NewHashFromBigInt(status.Issuer.ClaimsTreeRoot)
 	if err != nil {
-		return out, errors.New("state is not a number")
+		return out, errors.New("claims tree root is not a number")
 	}
 
 	revocationRoot, err := merkletree.NewHashFromBigInt(status.Issuer.RevocationTreeRoot)
 	if err != nil {
-		return out, errors.New("state is not a number")
+		return out, errors.New("revocation tree root is not a number")
 	}
 
 	rootOfRoots, err := merkletree.NewHashFromBigInt(status.Issuer.RootOfRoots)
 	if err != nil {
-		return out, errors.New("state is not a number")
+		return out, errors.New("root of roots tree root is not a number")
 	}
 
 	stateHex := state.Hex()
