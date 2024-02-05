@@ -195,7 +195,7 @@ func newIntFromHexQueryParam(uri *url.URL, paramName string) (*big.Int, error) {
 		return nil, nil
 	}
 
-	stateParam = strings.TrimSuffix(stateParam, "0x")
+	stateParam = strings.TrimPrefix(stateParam, "0x")
 	stateBytes, err := hex.DecodeString(stateParam)
 	if err != nil {
 		return nil, err
