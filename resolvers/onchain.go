@@ -65,7 +65,7 @@ func (r OnChainResolver) Resolve(ctx context.Context,
 		return out, err
 	}
 
-	onchainRevStatus, err := newOnchainRevStatusFromURI(status.ID)
+	onchainRevStatus, err := newOnchainRevStatusFromURI(status.ID, status.RevocationNonce)
 	if err != nil {
 		return out, err
 	}
@@ -121,10 +121,10 @@ func (r OnChainResolver) Resolve(ctx context.Context,
 	return toRevocationStatus(resp)
 }
 
-func newOnchainRevStatusFromURI(stateID string) (onChainRevStatus, error) {
+func newOnchainRevStatusFromURI(statusID string, statusRevNonce uint64) (onChainRevStatus, error) {
 	var s onChainRevStatus
 
-	uri, err := url.Parse(stateID)
+	uri, err := url.Parse(statusID)
 	if err != nil {
 		return s, errors.New("OnChainCredentialStatus ID is not a valid URI")
 	}
@@ -146,15 +146,19 @@ func newOnchainRevStatusFromURI(stateID string) (onChainRevStatus, error) {
 	}
 	s.contractAddress = common.HexToAddress(contractParts[1])
 
-	revocationNonce := uri.Query().Get("revocationNonce")
-	if revocationNonce == "" {
-		return s, errors.New("revocationNonce is empty in OnChainCredentialStatus ID")
+	queryRevNonceString := uri.Query().Get("revocationNonce")
+	if queryRevNonceString != "" {
+		queryRevNonce, err := strconv.ParseUint(queryRevNonceString, 10, 64)
+		if err != nil {
+			return s, errors.New("query revocationNonce is not a number in OnChainCredentialStatus ID")
+		}
+		if queryRevNonce != statusRevNonce {
+			return s, errors.New("query revocation nonce doesn't match with credential status nonce")
+		}
+
 	}
 
-	s.revNonce, err = strconv.ParseUint(revocationNonce, 10, 64)
-	if err != nil {
-		return s, errors.New("revocationNonce is not a number in OnChainCredentialStatus ID")
-	}
+	s.revNonce = statusRevNonce
 
 	// state may be nil if params is absent in query
 	s.genesisState, err = newIntFromHexQueryParam(uri, "state")
