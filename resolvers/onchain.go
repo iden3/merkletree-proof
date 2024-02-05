@@ -170,21 +170,19 @@ func newOnchainRevStatusFromURI(statusID string, statusRevNonce uint64) (onChain
 }
 
 func newChainIDFromString(in string) (core.ChainID, error) {
-	var chainID uint64
-	var err error
-	if strings.HasPrefix(in, "0x") ||
-		strings.HasPrefix(in, "0X") {
-		chainID, err = strconv.ParseUint(in[2:], 16, 64)
-		if err != nil {
-			return 0, err
-		}
-	} else {
-		chainID, err = strconv.ParseUint(in, 10, 64)
-		if err != nil {
-			return 0, err
-		}
+	radix := 10
+	if strings.HasPrefix(in, "0x") || strings.HasPrefix(in, "0X") {
+		radix = 16
+		in = in[2:]
 	}
-	return core.ChainID(chainID), nil
+
+	var chainID core.ChainID
+	assertUnderlineTypeInt32(chainID)
+	i, err := strconv.ParseInt(in, radix, 32)
+	if err != nil {
+		return 0, fmt.Errorf("can't parse ChainID type: %w", err)
+	}
+	return core.ChainID(i), nil
 }
 
 // newIntFromHexQueryParam search for query param `paramName`, parse it
@@ -403,3 +401,6 @@ func calculateDepth(siblings []*big.Int) int {
 	}
 	return 0
 }
+
+// function to fail a compilation if underlined type is not int32
+func assertUnderlineTypeInt32[T ~int32](_ T) {}
