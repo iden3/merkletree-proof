@@ -126,7 +126,7 @@ func newOnchainRevStatusFromURI(statusID string, statusRevNonce uint64) (onChain
 
 	uri, err := url.Parse(statusID)
 	if err != nil {
-		return s, errors.New("OnChainCredentialStatus ID is not a valid URI")
+		return s, errors.Wrapf(err, "OnChainCredentialStatus ID is not a valid URI")
 	}
 
 	contract := uri.Query().Get("contractAddress")
@@ -136,8 +136,8 @@ func newOnchainRevStatusFromURI(statusID string, statusRevNonce uint64) (onChain
 
 	contractParts := strings.Split(contract, ":")
 	if len(contractParts) != 2 {
-		return s, errors.New(
-			"OnChainCredentialStatus contract address is not valid")
+		return s, errors.Errorf(
+			"OnChainCredentialStatus contract address '%s' is not valid", contract)
 	}
 
 	s.chainID, err = newChainIDFromString(contractParts[0])
@@ -303,7 +303,7 @@ func getEthClientForDID(did *w3c.DID, ethClients map[core.ChainID]*ethclient.Cli
 
 	ethClient, ok := ethClients[chainID]
 	if !ok {
-		return nil, errors.Errorf("chain id is not registered for network %v", chainID)
+		return nil, errors.Errorf("chain id is not registered for network '%d'", chainID)
 	}
 	return ethClient, nil
 }
@@ -316,7 +316,7 @@ func getStateContractForDID(did *w3c.DID, stateContracts map[core.ChainID]common
 
 	contractAddr, ok := stateContracts[chainID]
 	if !ok {
-		return out, errors.Errorf("chain id is not registered for network %v", chainID)
+		return out, errors.Errorf("chain id is not registered for network '%d'", chainID)
 	}
 	return contractAddr, nil
 }
