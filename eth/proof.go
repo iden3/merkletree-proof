@@ -247,7 +247,7 @@ func (cli *ReverseHashCli) suggestGasTipCap(ctx context.Context) (*big.Int, erro
 	tip, err := cli.ethClient.SuggestGasTipCap(ctxRPC)
 	// since hardhat doesn't support 'eth_maxPriorityFeePerGas' rpc call.
 	// we should hard code 0 as a mainer tips. More information: https://github.com/NomicFoundation/hardhat/issues/1664#issuecomment-1149006010
-	if err != nil && strings.Contains(err.Error(), "eth_maxPriorityFeePerGas not found") {
+	if err != nil && strings.Contains(err.Error(), "eth_maxPriorityFeePerGas") {
 		log.Trace("failed get suggest gas tip. Use 0 instead", "err", err)
 		tip = big.NewInt(0)
 	} else if err != nil {
