@@ -7,12 +7,12 @@ require (
 	github.com/iden3/contracts-abi/onchain-credential-status-resolver/go/abi v0.0.0-20230911113809-c58b7e7a69b0
 	github.com/iden3/contracts-abi/rhs-storage/go/abi v0.0.0-20231006141557-7d13ef7e3c48
 	github.com/iden3/contracts-abi/state/go/abi v0.0.0-20230405152923-4a25f6f1f0f4
-	github.com/iden3/go-iden3-core/v2 v2.2.0
+	github.com/iden3/go-iden3-core/v2 v2.3.1
 	github.com/iden3/go-merkletree-sql/v2 v2.0.4
 	github.com/iden3/go-schema-processor/v2 v2.4.0
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
@@ -30,7 +30,7 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/holiman/uint256 v1.2.3 // indirect
 	github.com/huin/goupnp v1.2.0 // indirect
-	github.com/iden3/go-iden3-crypto v0.0.16 // indirect
+	github.com/iden3/go-iden3-crypto v0.0.17 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect

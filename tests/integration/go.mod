@@ -4,10 +4,10 @@ go 1.19
 
 require (
 	github.com/ethereum/go-ethereum v1.12.2
-	github.com/iden3/go-iden3-crypto v0.0.16
+	github.com/iden3/go-iden3-crypto v0.0.17
 	github.com/iden3/go-merkletree-sql/v2 v2.0.4
 	github.com/iden3/merkletree-proof v0.0.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
