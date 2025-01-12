@@ -30,7 +30,7 @@ func main() {
 	// generate tree with 10 random leaves.
 	tree := buildMT(10)
 
-	// save tree to reverse haash service
+	// save tree to reverse hash service
 	treeNodes := nodesFromTree(tree)
 	err := cli.SaveNodes(context.Background(), treeNodes)
 	if err != nil {
