@@ -26,6 +26,9 @@ func init() {
 
 var hashOne merkletree.Hash
 
+// Deprecated: use github.com/iden3/contracts-abi/onchain-credential-status-resolver/go/abi ErrNodeNotFound instead.
+var ErrNodeNotFound = errors.New("node not found")
+
 type ReverseHashCli struct {
 	URL         string
 	HTTPTimeout time.Duration
