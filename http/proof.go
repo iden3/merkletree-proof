@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
+	abicsr "github.com/iden3/contracts-abi/onchain-credential-status-resolver/go/abi"
 	"github.com/iden3/go-merkletree-sql/v2"
-	"github.com/iden3/merkletree-proof"
+	merkletree_proof "github.com/iden3/merkletree-proof"
 )
 
 func init() {
@@ -24,8 +25,6 @@ func init() {
 }
 
 var hashOne merkletree.Hash
-
-var ErrNodeNotFound = errors.New("node not found")
 
 type ReverseHashCli struct {
 	URL         string
@@ -97,7 +96,7 @@ func (cli *ReverseHashCli) GetNode(ctx context.Context,
 			return merkletree_proof.Node{}, err
 		}
 		if resp["status"] == "not found" {
-			return merkletree_proof.Node{}, ErrNodeNotFound
+			return merkletree_proof.Node{}, abicsr.ErrNodeNotFound
 		} else {
 			return merkletree_proof.Node{},
 				errors.New("unexpected response")

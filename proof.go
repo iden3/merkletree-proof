@@ -11,8 +11,6 @@ import (
 	"github.com/iden3/go-merkletree-sql/v2"
 )
 
-var ErrNodeNotFound = errors.New("node not found")
-
 type ReverseHashCli interface {
 	GenerateProof(ctx context.Context,
 		treeRoot *merkletree.Hash,
