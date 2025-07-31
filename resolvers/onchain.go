@@ -95,7 +95,7 @@ func (r OnChainResolver) Resolve(ctx context.Context,
 			onchainRevStatus.revNonce)
 		if err != nil {
 			msg := err.Error()
-			if isErrInvalidRootsLength(err) {
+			if onchainABI.IsErrInvalidStateNode(err) {
 				msg = "roots were not saved to identity tree store"
 			}
 			return out, fmt.Errorf(
@@ -213,7 +213,7 @@ func stateContractHasID(ctx context.Context, stateAddr common.Address, ethClient
 	}
 
 	_, err := lastStateFromContract(ctx, stateAddr, ethClient, id)
-	if errors.Is(err, errIdentityDoesNotExist) {
+	if errors.Is(err, abi.ErrIdentityDoesNotExist) {
 		return false, nil
 	} else if err != nil {
 		return false, err
@@ -228,22 +228,6 @@ type onChainRevStatus struct {
 	contractAddress common.Address
 	revNonce        uint64
 	genesisState    *big.Int
-}
-
-func isErrInvalidRootsLength(err error) bool {
-	if err == nil {
-		return false
-	}
-	return err.Error() == "execution reverted: Invalid roots length"
-}
-
-var errIdentityDoesNotExist = errors.New("identity does not exist")
-
-func isErrIdentityDoesNotExist(err error) bool {
-	if err == nil {
-		return false
-	}
-	return err.Error() == "execution reverted: Identity does not exist"
 }
 
 type syncedIDsSet struct {
@@ -282,8 +266,8 @@ func lastStateFromContract(ctx context.Context, stateAddr common.Address, ethCli
 
 	opts := &bind.CallOpts{Context: ctx}
 	resp, err := contractCaller.GetStateInfoById(opts, id.BigInt())
-	if isErrIdentityDoesNotExist(err) {
-		return nil, errIdentityDoesNotExist
+	if abi.IsErrIdentityDoesNotExist(err) {
+		return nil, abi.ErrIdentityDoesNotExist
 	} else if err != nil {
 		return nil, err
 	}
