@@ -95,7 +95,7 @@ func (r OnChainResolver) Resolve(ctx context.Context,
 			onchainRevStatus.revNonce)
 		if err != nil {
 			msg := err.Error()
-			if onchainABI.IsErrUnsupportedLength(err) {
+			if onchainABI.IsErrInvalidStateNode(err) {
 				msg = "roots were not saved to identity tree store"
 			}
 			return out, fmt.Errorf(
