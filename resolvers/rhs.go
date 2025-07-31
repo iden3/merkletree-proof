@@ -10,8 +10,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	abicsr "github.com/iden3/contracts-abi/onchain-credential-status-resolver/go/abi"
-	"github.com/iden3/contracts-abi/state/go/abi"
 	core "github.com/iden3/go-iden3-core/v2"
 	"github.com/iden3/go-merkletree-sql/v2"
 	"github.com/iden3/go-schema-processor/v2/verifiable"
@@ -78,7 +76,7 @@ func (r RHSResolver) Resolve(ctx context.Context,
 	}
 
 	out.Issuer, err = issuerFromRHS(ctx, *rhsCli, state)
-	if errors.Is(err, abicsr.ErrNodeNotFound) {
+	if errors.Is(err, mp.ErrNodeNotFound) {
 		if genesisState != nil && state.Equals(genesisState) {
 			return out, errors.New("genesis state is not found in RHS")
 		} else {
@@ -112,7 +110,7 @@ func identityStateForRHS(ctx context.Context, stateAddr common.Address, ethClien
 	genesisState *merkletree.Hash) (*merkletree.Hash, error) {
 
 	state, err := lastStateFromContract(ctx, stateAddr, ethClient, issuerID)
-	if !errors.Is(err, abi.ErrIdentityDoesNotExist) {
+	if !errors.Is(err, errIdentityDoesNotExist) {
 		return state, err
 	}
 
