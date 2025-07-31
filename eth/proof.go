@@ -14,10 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	abicsr "github.com/iden3/contracts-abi/onchain-credential-status-resolver/go/abi"
 	"github.com/iden3/contracts-abi/rhs-storage/go/abi"
 	"github.com/iden3/go-merkletree-sql/v2"
-	merkletree_proof "github.com/iden3/merkletree-proof"
+	"github.com/iden3/merkletree-proof"
 )
 
 type ReverseHashCli struct {
@@ -109,8 +108,8 @@ func (cli *ReverseHashCli) GetNode(ctx context.Context,
 	opts := &bind.CallOpts{Context: ctx}
 	children, err := cli.contract.GetNode(opts, id)
 	if err != nil {
-		if abicsr.IsErrNodeNotFound(err) {
-			return merkletree_proof.Node{}, abicsr.ErrNodeNotFound
+		if strings.Contains(err.Error(), "Node not found") {
+			return merkletree_proof.Node{}, merkletree_proof.ErrNodeNotFound
 		}
 		return merkletree_proof.Node{}, err
 	}

@@ -15,8 +15,8 @@ jobs:
     container: golang:${{ matrix.containers }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-      - uses: actions/cache@v3
+        uses: actions/checkout@v2
+      - uses: actions/cache@v2
         with:
           path: |
             ~/.cache/go-build
