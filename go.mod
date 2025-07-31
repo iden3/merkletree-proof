@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/ethereum/go-ethereum v1.12.2
-	github.com/iden3/contracts-abi/onchain-credential-status-resolver/go/abi v1.0.0
+	github.com/iden3/contracts-abi/onchain-credential-status-resolver/go/abi v1.0.2
 	github.com/iden3/contracts-abi/rhs-storage/go/abi v0.0.0-20231006141557-7d13ef7e3c48
 	github.com/iden3/contracts-abi/state/go/abi v1.1.0
 	github.com/iden3/go-iden3-core/v2 v2.3.1
